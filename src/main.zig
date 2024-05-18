@@ -1,8 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const vaxis = @import("vaxis");
-const log = &@import("./log.zig").log;
 
+const log = &@import("./log.zig").log;
+const List = @import("./list.zig").List;
+
+const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
 
 const Event = union(enum) {
@@ -17,21 +19,22 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
+    var entries = List(std.fs.Dir.Entry).init(alloc);
+    defer entries.deinit();
+
+    var inner_entries = List([]const u8).init(alloc);
+    defer inner_entries.deinit();
+
     log.init();
 
-    var file_buf: [1024]u8 = undefined;
+    // TODO: Figure out size.
+    var file_buf: [4096]u8 = undefined;
 
     var current_dir_buf: [std.fs.max_path_bytes]u8 = undefined;
     var current_dir: []u8 = "";
 
     var current_item_path: []u8 = "";
     var path: [std.fs.max_path_bytes]u8 = undefined;
-
-    var entries = std.ArrayList(std.fs.Dir.Entry).init(alloc);
-    defer entries.deinit();
-
-    var inner_entries = std.ArrayList([]const u8).init(alloc);
-    defer inner_entries.deinit();
 
     var dir = try std.fs.cwd().openDir(".", .{ .iterate = true });
     defer dir.close();
@@ -41,9 +44,10 @@ pub fn main() !void {
     // First populate.
     var it = dir.iterate();
     while (try it.next()) |entry| {
-        var e = try entries.addOne();
-        e.kind = entry.kind;
-        e.name = try alloc.dupe(u8, entry.name);
+        try entries.append(.{
+            .kind = entry.kind,
+            .name = try alloc.dupe(u8, entry.name),
+        });
     }
 
     vx = try vaxis.init(alloc, .{});
@@ -56,28 +60,24 @@ pub fn main() !void {
     try vx.enterAltScreen();
     defer vx.exitAltScreen() catch {};
 
-    var index: u8 = 0;
-
     while (true) {
         const event = loop.nextEvent();
 
         switch (event) {
             .key_press => |key| {
-                if (key.codepoint == 'c' and key.mods.ctrl) {
+                if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 113) {
                     break;
                 }
 
                 switch (key.codepoint) {
                     // -, h, Left arrow
                     45, 104, 57350 => {
-                        index = 0;
-
-                        for (entries.items) |entry| {
-                            alloc.free(entry.name);
+                        for (entries.all()) |entry| {
+                            entries.alloc.free(entry.name);
                         }
 
                         // Clear list for next render.
-                        entries.clearAndFree();
+                        entries.clear();
 
                         // Get new items.
                         dir = try dir.openDir("../", .{ .iterate = true });
@@ -85,44 +85,48 @@ pub fn main() !void {
 
                         it = dir.iterate();
                         while (try it.next()) |entry| {
-                            var e = try entries.addOne();
-                            e.kind = entry.kind;
-                            e.name = try alloc.dupe(u8, entry.name);
+                            try entries.append(.{
+                                .kind = entry.kind,
+                                .name = try alloc.dupe(u8, entry.name),
+                            });
                         }
                     },
                     // Enter, l, Right arrow
                     13, 108, 57351 => {
-                        // Get new items.
-                        dir = try dir.openDir(entries.items[index].name, .{ .iterate = true });
-                        current_dir = try dir.realpath(".", &current_dir_buf);
+                        const entry = entries.get(entries.selected) catch continue;
 
-                        for (entries.items) |entry| {
-                            alloc.free(entry.name);
+                        switch (entry.kind) {
+                            .directory => {
+                                // Get new items.
+                                dir = try dir.openDir(entry.name, .{ .iterate = true });
+                                current_dir = try dir.realpath(".", &current_dir_buf);
+
+                                for (entries.all()) |e| {
+                                    entries.alloc.free(e.name);
+                                }
+
+                                // Clear list for next render.
+                                entries.clear();
+
+                                it = dir.iterate();
+                                while (try it.next()) |e| {
+                                    try entries.append(.{
+                                        .kind = e.kind,
+                                        .name = try alloc.dupe(u8, e.name),
+                                    });
+                                }
+                            },
+                            .file => {},
+                            else => {},
                         }
-
-                        // Clear list for next render.
-                        entries.clearAndFree();
-
-                        it = dir.iterate();
-                        while (try it.next()) |entry| {
-                            var e = try entries.addOne();
-                            e.kind = entry.kind;
-                            e.name = try alloc.dupe(u8, entry.name);
-                        }
-
-                        index = 0;
                     },
                     // j, Arrow down
                     106, 57353 => {
-                        if (index < entries.items.len - 1) {
-                            index += 1;
-                        }
+                        entries.next();
                     },
                     // k, Arrow up
                     107, 57352 => {
-                        if (index > 0) {
-                            index -= 1;
-                        }
+                        entries.previous();
                     },
                     else => {
                         // log.debug("codepoint: {d}\n", .{key.codepoint});
@@ -154,24 +158,24 @@ pub fn main() !void {
 
         const right_bar = win.initChild(
             win.width / 2,
-            top_div + 1,
+            0,
             .{ .limit = win.width / 2 },
             .{ .limit = win.height - (top_bar.height + 1) },
         );
 
-        if (entries.items.len > 0) {
-            const entry = entries.items[index];
+        if (entries.all().len > 0) {
+            const entry = try entries.get(entries.selected);
 
             current_item_path = try std.fmt.bufPrint(&path, "{s}/{s}", .{ current_dir, entry.name });
 
             switch (entry.kind) {
                 .directory => {
                     // Clear list for next render.
-                    for (inner_entries.items) |inner_entry| {
-                        alloc.free(inner_entry);
+                    for (inner_entries.all()) |inner_entry| {
+                        inner_entries.alloc.free(inner_entry);
                     }
 
-                    inner_entries.clearAndFree();
+                    inner_entries.clear();
 
                     // Get new items.
                     var inner_dir = try dir.openDir(current_item_path, .{ .iterate = true });
@@ -181,17 +185,9 @@ pub fn main() !void {
                         try inner_entries.append(try alloc.dupe(u8, inner_entry.name));
                     }
 
-                    for (inner_entries.items, 0..) |inner_entry, i| {
-                        _ = try right_bar.print(
-                            &.{
-                                .{
-                                    .text = inner_entry,
-                                },
-                            },
-                            .{ .row_offset = i },
-                        );
-                    }
+                    try inner_entries.render(right_bar, null, null, null);
                 },
+                // TODO: Handle binary files.
                 .file => {
                     var file = try dir.openFile(entry.name, .{ .mode = .read_only });
                     defer file.close();
@@ -211,27 +207,27 @@ pub fn main() !void {
 
         _ = try top_bar.print(&.{vaxis.Segment{ .text = current_dir }}, .{});
 
-        for (entries.items, 0..) |entry, i| {
-            const w = left_bar.child(.{ .y_off = i });
-            _ = try w.print(&.{
-                .{
-                    .text = entry.name,
-                    .style = .{
-                        .bold = i == index,
-                    },
-                },
-            }, .{});
-        }
+        try entries.render(
+            left_bar,
+            "name",
+            .{
+                .fg = .{ .rgb = .{ 255, 255, 0 } },
+            },
+            .{
+                .bold = true,
+                .fg = .{ .rgb = .{ 255, 255, 0 } },
+            },
+        );
 
         try vx.render();
     }
 
-    for (inner_entries.items) |inner_entry| {
-        alloc.free(inner_entry);
+    for (inner_entries.all()) |inner_entry| {
+        inner_entries.alloc.free(inner_entry);
     }
 
-    for (entries.items) |entry| {
-        alloc.free(entry.name);
+    for (entries.all()) |entry| {
+        entries.alloc.free(entry.name);
     }
 }
 
