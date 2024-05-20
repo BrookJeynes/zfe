@@ -48,21 +48,39 @@ pub fn List(comptime T: type) type {
         pub fn next(self: *Self) void {
             if (self.selected + 1 < self.items.items.len) {
                 self.selected += 1;
-                self.offset += 1;
+
+                if (self.selected > 10) {
+                    self.offset += 1;
+                }
             }
         }
 
         pub fn previous(self: *Self) void {
             if (self.selected > 0) {
                 self.selected -= 1;
-                self.offset -= 1;
+
+                if (self.offset > 0) {
+                    self.offset -= 1;
+                }
             }
         }
 
-        pub fn render(self: *Self, window: vaxis.Window, comptime field: ?[]const u8, style: ?vaxis.Style, selected_item_style: ?vaxis.Style) !void {
+        pub fn render(
+            self: *Self,
+            window: vaxis.Window,
+            comptime field: ?[]const u8,
+            style: ?vaxis.Style,
+            selected_item_style: ?vaxis.Style,
+            callback: ?*const fn (item_win: vaxis.Window) void,
+        ) !void {
             if (self.items.items.len != 0) {
                 for (self.items.items[self.offset..], 0..) |item, i| {
                     const w = window.child(.{ .y_off = i });
+
+                    if (callback) |cb| {
+                        cb(w);
+                    }
+
                     _ = try w.print(&.{
                         .{
                             .text = if (field) |f| @field(item, f) else item,

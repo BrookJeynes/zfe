@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const log = &@import("./log.zig").log;
 const List = @import("./list.zig").List;
+const View = @import("./view.zig");
 
 const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
@@ -14,41 +15,42 @@ const Event = union(enum) {
 
 var vx: vaxis.Vaxis = undefined;
 
+const Styles = struct {
+    selected_list_item: vaxis.Style,
+    list_item: vaxis.Style,
+    file_name: vaxis.Style,
+    file_information: vaxis.Style,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    var entries = List(std.fs.Dir.Entry).init(alloc);
-    defer entries.deinit();
+    const styles = Styles{
+        .file_name = .{},
+        .list_item = .{},
+        .selected_list_item = .{ .bold = true },
+        .file_information = .{
+            .fg = .{ .rgb = .{ 0, 0, 0 } },
+            .bg = .{ .rgb = .{ 255, 255, 255 } },
+        },
+    };
 
-    var inner_entries = List([]const u8).init(alloc);
-    defer inner_entries.deinit();
+    var view = try View.init(alloc);
+    defer view.deinit();
+
+    var file_metadata = try view.dir.metadata();
 
     log.init();
 
     // TODO: Figure out size.
     var file_buf: [4096]u8 = undefined;
 
-    var current_dir_buf: [std.fs.max_path_bytes]u8 = undefined;
-    var current_dir: []u8 = "";
-
     var current_item_path: []u8 = "";
     var path: [std.fs.max_path_bytes]u8 = undefined;
 
-    var dir = try std.fs.cwd().openDir(".", .{ .iterate = true });
-    defer dir.close();
-
-    current_dir = try dir.realpath(".", &current_dir_buf);
-
-    // First populate.
-    var it = dir.iterate();
-    while (try it.next()) |entry| {
-        try entries.append(.{
-            .kind = entry.kind,
-            .name = try alloc.dupe(u8, entry.name),
-        });
-    }
+    try view.populate();
 
     vx = try vaxis.init(alloc, .{});
     defer vx.deinit(alloc);
@@ -72,49 +74,19 @@ pub fn main() !void {
                 switch (key.codepoint) {
                     // -, h, Left arrow
                     45, 104, 57350 => {
-                        for (entries.all()) |entry| {
-                            entries.alloc.free(entry.name);
-                        }
-
-                        // Clear list for next render.
-                        entries.clear();
-
-                        // Get new items.
-                        dir = try dir.openDir("../", .{ .iterate = true });
-                        current_dir = try dir.realpath(".", &current_dir_buf);
-
-                        it = dir.iterate();
-                        while (try it.next()) |entry| {
-                            try entries.append(.{
-                                .kind = entry.kind,
-                                .name = try alloc.dupe(u8, entry.name),
-                            });
-                        }
+                        view.cleanup();
+                        try view.open("../");
+                        try view.populate();
                     },
                     // Enter, l, Right arrow
                     13, 108, 57351 => {
-                        const entry = entries.get(entries.selected) catch continue;
+                        const entry = view.entries.get(view.entries.selected) catch continue;
 
                         switch (entry.kind) {
                             .directory => {
-                                // Get new items.
-                                dir = try dir.openDir(entry.name, .{ .iterate = true });
-                                current_dir = try dir.realpath(".", &current_dir_buf);
-
-                                for (entries.all()) |e| {
-                                    entries.alloc.free(e.name);
-                                }
-
-                                // Clear list for next render.
-                                entries.clear();
-
-                                it = dir.iterate();
-                                while (try it.next()) |e| {
-                                    try entries.append(.{
-                                        .kind = e.kind,
-                                        .name = try alloc.dupe(u8, e.name),
-                                    });
-                                }
+                                try view.open(entry.name);
+                                view.cleanup();
+                                try view.populate();
                             },
                             .file => {},
                             else => {},
@@ -122,11 +94,11 @@ pub fn main() !void {
                     },
                     // j, Arrow down
                     106, 57353 => {
-                        entries.next();
+                        view.entries.next();
                     },
                     // k, Arrow up
                     107, 57352 => {
-                        entries.previous();
+                        view.entries.previous();
                     },
                     else => {
                         // log.debug("codepoint: {d}\n", .{key.codepoint});
@@ -142,56 +114,66 @@ pub fn main() !void {
         win.clear();
 
         const top_div = 1;
-        const top_bar = win.initChild(
-            0,
-            0,
-            .{ .limit = win.width },
-            .{ .limit = top_div },
-        );
+        const bottom_div = 1;
 
-        const left_bar = win.initChild(
-            0,
-            top_div + 1,
-            .{ .limit = win.width / 2 },
-            .{ .limit = win.height - (top_bar.height + 1) },
-        );
+        const top_left_bar = win.child(.{
+            .x_off = 0,
+            .y_off = 0,
+            .width = .{ .limit = win.width },
+            .height = .{ .limit = top_div },
+        });
 
-        const right_bar = win.initChild(
-            win.width / 2,
-            0,
-            .{ .limit = win.width / 2 },
-            .{ .limit = win.height - (top_bar.height + 1) },
-        );
+        const bottom_left_bar = win.child(.{
+            .x_off = 0,
+            .y_off = win.height - bottom_div,
+            .width = .{ .limit = win.width / 2 },
+            .height = .{ .limit = bottom_div },
+        });
+        bottom_left_bar.fill(vaxis.Cell{ .style = styles.file_information });
 
-        if (entries.all().len > 0) {
-            const entry = try entries.get(entries.selected);
+        const top_right_bar = win.child(.{
+            .x_off = win.width / 2,
+            .y_off = 0,
+            .width = .{ .limit = win.width },
+            .height = .{ .limit = top_div },
+        });
 
-            current_item_path = try std.fmt.bufPrint(&path, "{s}/{s}", .{ current_dir, entry.name });
+        const left_bar = win.child(.{
+            .x_off = 0,
+            .y_off = top_div + 1,
+            .width = .{ .limit = win.width / 2 },
+            .height = .{ .limit = win.height - (top_left_bar.height + bottom_left_bar.height + top_div + bottom_div) },
+        });
+
+        const right_bar = win.child(.{
+            .x_off = win.width / 2,
+            .y_off = top_div + 1,
+            .width = .{ .limit = win.width / 2 },
+            .height = .{ .limit = win.height - (top_left_bar.height + 1) },
+        });
+
+        if (view.entries.all().len > 0) {
+            const entry = try view.entries.get(view.entries.selected);
+
+            current_item_path = try std.fmt.bufPrint(&path, "{s}/{s}", .{ try view.full_path("."), entry.name });
 
             switch (entry.kind) {
                 .directory => {
-                    // Clear list for next render.
-                    for (inner_entries.all()) |inner_entry| {
-                        inner_entries.alloc.free(inner_entry);
-                    }
+                    view.cleanup_sub();
+                    try view.open_sub(current_item_path);
+                    try view.populate_sub();
 
-                    inner_entries.clear();
+                    file_metadata = try view.sub_dir.metadata();
 
-                    // Get new items.
-                    var inner_dir = try dir.openDir(current_item_path, .{ .iterate = true });
-
-                    var inner_it = inner_dir.iterate();
-                    while (try inner_it.next()) |inner_entry| {
-                        try inner_entries.append(try alloc.dupe(u8, inner_entry.name));
-                    }
-
-                    try inner_entries.render(right_bar, null, null, null);
+                    try view.sub_entries.render(right_bar, null, styles.list_item, null, null);
                 },
                 // TODO: Handle binary files.
                 .file => {
-                    var file = try dir.openFile(entry.name, .{ .mode = .read_only });
+                    var file = try view.dir.openFile(entry.name, .{ .mode = .read_only });
                     defer file.close();
                     const bytes = try file.readAll(&file_buf);
+
+                    file_metadata = try file.metadata();
 
                     _ = try right_bar.print(&.{
                         .{
@@ -205,30 +187,38 @@ pub fn main() !void {
             }
         }
 
-        _ = try top_bar.print(&.{vaxis.Segment{ .text = current_dir }}, .{});
+        _ = try top_left_bar.print(&.{vaxis.Segment{ .text = try view.full_path(".") }}, .{});
 
-        try entries.render(
-            left_bar,
-            "name",
-            .{
-                .fg = .{ .rgb = .{ 255, 255, 0 } },
-            },
-            .{
-                .bold = true,
-                .fg = .{ .rgb = .{ 255, 255, 0 } },
-            },
-        );
+        var file_information_buf: [1024]u8 = undefined;
+        const file_information = try std.fmt.bufPrint(&file_information_buf, "{d}/{d} {s} {s}", .{
+            view.entries.selected + 1,
+            view.entries.items.items.len,
+            get_extension((try view.entries.get(view.entries.selected)).name),
+            std.fmt.fmtIntSizeDec(file_metadata.size()),
+        });
+        _ = try bottom_left_bar.print(&.{vaxis.Segment{ .text = file_information, .style = styles.file_information }}, .{});
+
+        if (view.entries.get(view.entries.selected)) |entry| {
+            var file_name_buf: [std.fs.MAX_NAME_BYTES + 2]u8 = undefined;
+            const file_name = try std.fmt.bufPrint(&file_name_buf, "[{s}]", .{entry.name});
+            _ = try top_right_bar.print(&.{vaxis.Segment{
+                .text = file_name,
+                .style = styles.file_name,
+            }}, .{});
+        } else |_| {}
+
+        try view.entries.render(left_bar, "name", styles.list_item, styles.selected_list_item, null);
 
         try vx.render();
     }
+}
 
-    for (inner_entries.all()) |inner_entry| {
-        inner_entries.alloc.free(inner_entry);
+fn get_extension(file: []const u8) []const u8 {
+    const index = std.mem.indexOf(u8, file, ".") orelse 0;
+    if (index == 0) {
+        return "";
     }
-
-    for (entries.all()) |entry| {
-        entries.alloc.free(entry.name);
-    }
+    return file[std.mem.indexOf(u8, file, ".") orelse 0 ..];
 }
 
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
