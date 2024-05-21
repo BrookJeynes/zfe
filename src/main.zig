@@ -59,7 +59,10 @@ pub fn main() !void {
     var file_buf: [4096]u8 = undefined;
 
     var current_item_path: []u8 = "";
+    var last_item_path: []u8 = "";
+    var image: ?vaxis.Image = null;
     var path: [std.fs.max_path_bytes]u8 = undefined;
+    var last_path: [std.fs.max_path_bytes]u8 = undefined;
 
     try view.populate();
 
@@ -194,6 +197,8 @@ pub fn main() !void {
         if (view.entries.all().len > 0) {
             const entry = try view.entries.get(view.entries.selected);
 
+            @memcpy(&last_path, &path);
+            last_item_path = last_path[0..current_item_path.len];
             current_item_path = try std.fmt.bufPrint(&path, "{s}/{s}", .{ try view.full_path("."), entry.name });
 
             switch (entry.kind) {
@@ -206,7 +211,15 @@ pub fn main() !void {
 
                     try view.sub_entries.render(right_bar, null, styles.list_item, null, null);
                 },
-                .file => {
+                .file => file: {
+                    // Don't do anything if we haven't changed selection
+                    if (std.mem.eql(u8, last_item_path, current_item_path)) break :file;
+
+                    // Free any image we might have already
+                    if (image) |img| {
+                        vx.freeImage(img.id);
+                    }
+
                     var file = try view.dir.openFile(entry.name, .{ .mode = .read_only });
                     defer file.close();
                     const bytes = try file.readAll(&file_buf);
@@ -219,12 +232,7 @@ pub fn main() !void {
                         }, .{});
                     } else {
                         if (std.mem.eql(u8, get_extension(entry.name), ".png") or std.mem.eql(u8, get_extension(entry.name), ".jpg")) {
-                            var image = try vx.loadImage(alloc, .{ .path = current_item_path });
-                            defer vx.freeImage(image.id);
-
-                            const scale = true;
-                            const z_index = 0;
-                            image.draw(right_bar, scale, z_index);
+                            image = try vx.loadImage(alloc, .{ .path = current_item_path });
                         } else {
                             _ = try right_bar.print(&.{
                                 .{
@@ -238,6 +246,12 @@ pub fn main() !void {
                     _ = try right_bar.print(&.{vaxis.Segment{ .text = current_item_path }}, .{});
                 },
             }
+        }
+
+        if (image) |img| {
+            const scale = true;
+            const z_index = 0;
+            img.draw(right_bar, scale, z_index);
         }
 
         _ = try top_left_bar.print(&.{vaxis.Segment{ .text = try view.full_path(".") }}, .{});
