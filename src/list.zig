@@ -9,6 +9,7 @@ pub fn List(comptime T: type) type {
         items: std.ArrayList(T),
         selected: usize,
         offset: usize,
+        last_rendered_pos: usize,
 
         pub fn init(alloc: std.mem.Allocator) Self {
             return Self{
@@ -16,6 +17,7 @@ pub fn List(comptime T: type) type {
                 .items = std.ArrayList(T).init(alloc),
                 .selected = 0,
                 .offset = 0,
+                .last_rendered_pos = 0,
             };
         }
 
@@ -45,17 +47,19 @@ pub fn List(comptime T: type) type {
             return self.items.items;
         }
 
-        pub fn next(self: *Self) void {
+        pub fn next(self: *Self, win_height: usize) void {
             if (self.selected + 1 < self.items.items.len) {
                 self.selected += 1;
 
-                if (self.selected > 10) {
+                if (self.items.items[self.offset..].len != win_height and self.selected >= win_height / 2) {
                     self.offset += 1;
                 }
             }
         }
 
-        pub fn previous(self: *Self) void {
+        pub fn previous(self: *Self, win_height: usize) void {
+            _ = win_height;
+
             if (self.selected > 0) {
                 self.selected -= 1;
 
@@ -63,6 +67,18 @@ pub fn List(comptime T: type) type {
                     self.offset -= 1;
                 }
             }
+        }
+
+        pub fn select_last(self: *Self, win_height: usize) void {
+            self.selected = self.items.items.len - 1;
+            if (self.selected >= win_height) {
+                self.offset = self.selected - (win_height - 1);
+            }
+        }
+
+        pub fn select_first(self: *Self) void {
+            self.selected = 0;
+            self.offset = 0;
         }
 
         pub fn render(
@@ -75,6 +91,10 @@ pub fn List(comptime T: type) type {
         ) !void {
             if (self.items.items.len != 0) {
                 for (self.items.items[self.offset..], 0..) |item, i| {
+                    if (i > window.height) {
+                        continue;
+                    }
+
                     const w = window.child(.{ .y_off = i });
 
                     if (callback) |cb| {
@@ -87,6 +107,8 @@ pub fn List(comptime T: type) type {
                             .style = if (self.selected - self.offset == i) selected_item_style orelse .{} else style orelse .{},
                         },
                     }, .{});
+
+                    self.last_rendered_pos = i;
                 }
             }
         }

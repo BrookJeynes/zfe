@@ -1,5 +1,6 @@
 const std = @import("std");
 const List = @import("./list.zig").List;
+const config = @import("./main.zig").config;
 
 const Self = @This();
 
@@ -47,16 +48,37 @@ pub fn full_path(self: *Self, relative_path: []const u8) ![]const u8 {
 pub fn populate(self: *Self) !void {
     var it = self.dir.iterate();
     while (try it.next()) |entry| {
+        if (std.mem.startsWith(u8, entry.name, ".") and config.show_hidden == false) {
+            continue;
+        }
+
         try self.entries.append(.{
             .kind = entry.kind,
             .name = try self.alloc.dupe(u8, entry.name),
         });
     }
+
+    if (config.sort_dirs == true) {
+        std.mem.sort(
+            std.fs.Dir.Entry,
+            self.entries.items.items,
+            {},
+            sort_entry,
+        );
+    }
+}
+
+fn sort_entry(_: void, lhs: std.fs.Dir.Entry, rhs: std.fs.Dir.Entry) bool {
+    return std.mem.lessThan(u8, lhs.name, rhs.name);
 }
 
 pub fn populate_sub(self: *Self) !void {
     var it = self.sub_dir.iterate();
     while (try it.next()) |entry| {
+        if (std.mem.startsWith(u8, entry.name, ".") and config.show_hidden == false) {
+            continue;
+        }
+
         try self.sub_entries.append(try self.alloc.dupe(u8, entry.name));
     }
 }
