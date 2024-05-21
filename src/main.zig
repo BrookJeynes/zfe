@@ -19,6 +19,8 @@ var vx: vaxis.Vaxis = undefined;
 const Config = struct {
     show_hidden: bool,
     sort_dirs: bool,
+    show_images: bool,
+    preview_file: bool,
 };
 
 const Styles = struct {
@@ -41,6 +43,8 @@ pub const styles = Styles{
 pub const config = Config{
     .show_hidden = false,
     .sort_dirs = true,
+    .show_images = true,
+    .preview_file = true,
 };
 
 pub fn main() !void {
@@ -89,14 +93,12 @@ pub fn main() !void {
                 }
 
                 switch (key.codepoint) {
-                    // -, h, Left arrow
                     '-', 'h', Key.left => {
                         view.cleanup();
                         try view.open("../");
                         try view.populate();
                         last_pressed = null;
                     },
-                    // Enter, l, Right arrow
                     Key.enter, 'l', Key.right => {
                         const entry = view.entries.get(view.entries.selected) catch continue;
 
@@ -111,17 +113,14 @@ pub fn main() !void {
                         }
                         last_pressed = null;
                     },
-                    // j, Arrow down
                     'j', Key.down => {
                         view.entries.next(last_known_height);
                         last_pressed = null;
                     },
-                    // k, Arrow up
                     'k', Key.up => {
                         view.entries.previous(last_known_height);
                         last_pressed = null;
                     },
-                    // g
                     'g' => {
                         if (key.matches('G', .{})) {
                             view.entries.select_last(last_known_height);
@@ -161,7 +160,7 @@ pub fn main() !void {
         const bottom_left_bar = win.child(.{
             .x_off = 0,
             .y_off = win.height - bottom_div,
-            .width = .{ .limit = win.width / 2 },
+            .width = if (config.preview_file) .{ .limit = win.width / 2 } else .{ .limit = win.width },
             .height = .{ .limit = bottom_div },
         });
         bottom_left_bar.fill(vaxis.Cell{ .style = styles.file_information });
@@ -183,7 +182,7 @@ pub fn main() !void {
         const left_bar = win.child(.{
             .x_off = 0,
             .y_off = top_div + 1,
-            .width = .{ .limit = win.width / 2 },
+            .width = if (config.preview_file) .{ .limit = win.width / 2 } else .{ .limit = win.width },
             .height = .{ .limit = win.height - (top_left_bar.height + bottom_left_bar.height + top_div + bottom_div) },
         });
 
@@ -194,7 +193,7 @@ pub fn main() !void {
             .height = .{ .limit = win.height - (top_right_bar.height + bottom_right_bar.height + top_div + bottom_div) },
         });
 
-        if (view.entries.all().len > 0) {
+        if (view.entries.all().len > 0 and config.preview_file == true) {
             const entry = try view.entries.get(view.entries.selected);
 
             @memcpy(&last_path, &path);
@@ -212,35 +211,52 @@ pub fn main() !void {
                     try view.sub_entries.render(right_bar, null, styles.list_item, null, null);
                 },
                 .file => file: {
-                    // Don't do anything if we haven't changed selection
-                    if (std.mem.eql(u8, last_item_path, current_item_path)) break :file;
-
-                    // Free any image we might have already
-                    if (image) |img| {
-                        vx.freeImage(img.id);
-                    }
-
                     var file = try view.dir.openFile(entry.name, .{ .mode = .read_only });
                     defer file.close();
                     const bytes = try file.readAll(&file_buf);
 
+                    // Handle image.
+                    if (config.show_images == true) unsupported_terminal: {
+                        const supported: [1][]const u8 = .{".png"};
+
+                        for (supported) |ext| {
+                            if (std.mem.eql(u8, get_extension(entry.name), ext)) {
+                                // Don't re-render preview if we haven't changed selection.
+                                if (std.mem.eql(u8, last_item_path, current_item_path)) break :file;
+
+                                if (vx.loadImage(alloc, .{ .path = current_item_path })) |img| {
+                                    image = img;
+                                } else |_| {
+                                    image = null;
+                                    break :unsupported_terminal;
+                                }
+
+                                break :file;
+                            } else {
+                                // Free any image we might have already.
+                                if (image) |img| {
+                                    vx.freeImage(img.id);
+                                }
+                            }
+                        }
+                    }
+
+                    // Handle utf-8.
                     if (std.unicode.utf8ValidateSlice(file_buf[0..bytes])) {
                         _ = try right_bar.print(&.{
                             .{
                                 .text = file_buf[0..bytes],
                             },
                         }, .{});
-                    } else {
-                        if (std.mem.eql(u8, get_extension(entry.name), ".png") or std.mem.eql(u8, get_extension(entry.name), ".jpg")) {
-                            image = try vx.loadImage(alloc, .{ .path = current_item_path });
-                        } else {
-                            _ = try right_bar.print(&.{
-                                .{
-                                    .text = "No preview available.",
-                                },
-                            }, .{});
-                        }
+                        break :file;
                     }
+
+                    // Fallback to no preview.
+                    _ = try right_bar.print(&.{
+                        .{
+                            .text = "No preview available.",
+                        },
+                    }, .{});
                 },
                 else => {
                     _ = try right_bar.print(&.{vaxis.Segment{ .text = current_item_path }}, .{});
@@ -266,16 +282,21 @@ pub fn main() !void {
             std.fmt.fmtIntSizeDec(file_metadata.size()),
         });
         _ = try bottom_left_bar.print(&.{vaxis.Segment{ .text = file_information, .style = styles.file_information }}, .{});
-        _ = try bottom_right_bar.print(&.{vaxis.Segment{ .text = if (last_pressed) |key| key.text.? else "" }}, .{});
+        _ = try bottom_right_bar.print(&.{vaxis.Segment{
+            .text = if (last_pressed) |key| key.text.? else "",
+            .style = if (config.preview_file) .{} else styles.file_information,
+        }}, .{});
 
-        if (view.entries.get(view.entries.selected)) |entry| {
-            var file_name_buf: [std.fs.MAX_NAME_BYTES + 2]u8 = undefined;
-            const file_name = try std.fmt.bufPrint(&file_name_buf, "[{s}]", .{entry.name});
-            _ = try top_right_bar.print(&.{vaxis.Segment{
-                .text = file_name,
-                .style = styles.file_name,
-            }}, .{});
-        } else |_| {}
+        if (config.preview_file == true) {
+            if (view.entries.get(view.entries.selected)) |entry| {
+                var file_name_buf: [std.fs.MAX_NAME_BYTES + 2]u8 = undefined;
+                const file_name = try std.fmt.bufPrint(&file_name_buf, "[{s}]", .{entry.name});
+                _ = try top_right_bar.print(&.{vaxis.Segment{
+                    .text = file_name,
+                    .style = styles.file_name,
+                }}, .{});
+            } else |_| {}
+        }
 
         try view.entries.render(left_bar, "name", styles.list_item, styles.selected_list_item, null);
 

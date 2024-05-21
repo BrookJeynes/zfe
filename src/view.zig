@@ -59,17 +59,16 @@ pub fn populate(self: *Self) !void {
     }
 
     if (config.sort_dirs == true) {
-        std.mem.sort(
-            std.fs.Dir.Entry,
-            self.entries.items.items,
-            {},
-            sort_entry,
-        );
+        std.mem.sort(std.fs.Dir.Entry, self.entries.items.items, {}, sort_entry);
     }
 }
 
 fn sort_entry(_: void, lhs: std.fs.Dir.Entry, rhs: std.fs.Dir.Entry) bool {
     return std.mem.lessThan(u8, lhs.name, rhs.name);
+}
+
+fn sort_sub_entry(_: void, lhs: []const u8, rhs: []const u8) bool {
+    return std.mem.lessThan(u8, lhs, rhs);
 }
 
 pub fn populate_sub(self: *Self) !void {
@@ -80,6 +79,10 @@ pub fn populate_sub(self: *Self) !void {
         }
 
         try self.sub_entries.append(try self.alloc.dupe(u8, entry.name));
+    }
+
+    if (config.sort_dirs == true) {
+        std.mem.sort([]const u8, self.sub_entries.items.items, {}, sort_sub_entry);
     }
 }
 
