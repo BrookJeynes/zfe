@@ -7,6 +7,7 @@ const View = @import("./view.zig");
 
 const vaxis = @import("vaxis");
 const Cell = vaxis.Cell;
+const Key = vaxis.Key;
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -86,14 +87,14 @@ pub fn main() !void {
 
                 switch (key.codepoint) {
                     // -, h, Left arrow
-                    45, 104, 57350 => {
+                    '-', 'h', Key.left => {
                         view.cleanup();
                         try view.open("../");
                         try view.populate();
                         last_pressed = null;
                     },
                     // Enter, l, Right arrow
-                    13, 108, 57351 => {
+                    Key.enter, 'l', Key.right => {
                         const entry = view.entries.get(view.entries.selected) catch continue;
 
                         switch (entry.kind) {
@@ -108,18 +109,21 @@ pub fn main() !void {
                         last_pressed = null;
                     },
                     // j, Arrow down
-                    106, 57353 => {
+                    'j', Key.down => {
                         view.entries.next(last_known_height);
                         last_pressed = null;
                     },
                     // k, Arrow up
-                    107, 57352 => {
+                    'k', Key.up => {
                         view.entries.previous(last_known_height);
                         last_pressed = null;
                     },
                     // g
-                    103 => {
-                        if (last_pressed) |k| {
+                    'g' => {
+                        if (key.matches('G', .{})) {
+                            view.entries.select_last(last_known_height);
+                            last_pressed = null;
+                        } else if (last_pressed) |k| {
                             if (k.codepoint == 103) {
                                 view.entries.select_first();
                                 last_pressed = null;
@@ -127,11 +131,6 @@ pub fn main() !void {
                         } else {
                             last_pressed = key;
                         }
-                    },
-                    // G
-                    71 => {
-                        view.entries.select_last(last_known_height);
-                        last_pressed = null;
                     },
                     else => {
                         // log.debug("codepoint: {d}\n", .{key.codepoint});
