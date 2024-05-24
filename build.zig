@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.13.0-dev.44+9d64332a5";
+const min_zig_string = "0.12.0";
 const version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
 
 const targets: []const std.Target.Query = &.{
@@ -52,4 +52,32 @@ pub fn build(b: *std.Build) !void {
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    // Building targets for release.
+    // for (targets) |t| {
+    //     const build_target = b.resolveTargetQuery(t);
+    //
+    //     const build_libvaxis_dep = b.dependency("vaxis", .{ .target = target });
+    //     const build_libvaxis_mod = build_libvaxis_dep.module("vaxis");
+    //
+    //     const build_exe = b.addExecutable(.{
+    //         .name = "zfe",
+    //         .root_source_file = b.path("src/main.zig"),
+    //         .target = build_target,
+    //         .optimize = optimize,
+    //     });
+    //     build_exe.root_module.addImport("vaxis", build_libvaxis_mod);
+    //     build_exe.root_module.addImport("options", exe_options_module);
+    //     b.installArtifact(exe);
+    //
+    //     const target_output = b.addInstallArtifact(exe, .{
+    //         .dest_dir = .{
+    //             .override = .{
+    //                 .custom = try t.zigTriple(b.allocator),
+    //             },
+    //         },
+    //     });
+    //
+    //     b.getInstallStep().dependOn(&target_output.step);
+    // }
 }

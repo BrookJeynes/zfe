@@ -61,7 +61,7 @@ pub fn main() !void {
 
         switch (event) {
             .key_press => |key| {
-                if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 113) {
+                if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
                     break;
                 }
 
