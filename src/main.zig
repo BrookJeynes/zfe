@@ -28,7 +28,11 @@ pub fn main() !void {
     var file_metadata = try view.dir.metadata();
 
     log.init();
-    try config.parse(alloc, "config.json");
+
+    config.parse(alloc) catch |err| {
+        log.err("Could not read config - {any}", .{err});
+        return;
+    };
 
     // TODO: Figure out size.
     var file_buf: [4096]u8 = undefined;

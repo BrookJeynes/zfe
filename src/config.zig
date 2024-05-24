@@ -1,5 +1,6 @@
 const std = @import("std");
 const vaxis = @import("vaxis");
+const environment = @import("./environment.zig");
 
 const Config = struct {
     show_hidden: bool = true,
@@ -8,8 +9,18 @@ const Config = struct {
     preview_file: bool = true,
     styles: Styles,
 
-    pub fn parse(self: *Config, alloc: std.mem.Allocator, path: []const u8) !void {
-        const config_file = try std.fs.cwd().openFile(path, .{});
+    pub fn parse(self: *Config, alloc: std.mem.Allocator) !void {
+        var home_dir = try environment.getHomeDir();
+        defer home_dir.close();
+
+        const config_path = try std.fs.path.join(alloc, &.{ ".zfe", "config.json" });
+        defer alloc.free(config_path);
+
+        if (!environment.fileExists(home_dir, config_path)) {
+            return error.ConfigNotFound;
+        }
+
+        const config_file = try home_dir.openFile(config_path, .{});
         defer config_file.close();
 
         const config_str = try config_file.readToEndAlloc(alloc, 1024 * 1024 * 1024);
@@ -18,11 +29,7 @@ const Config = struct {
         const c = try std.json.parseFromSlice(Config, alloc, config_str, .{});
         defer c.deinit();
 
-        self.show_hidden = c.value.show_hidden;
-        self.sort_dirs = c.value.sort_dirs;
-        self.show_images = c.value.show_images;
-        self.preview_file = c.value.preview_file;
-        self.styles = c.value.styles;
+        self.* = c.value;
     }
 };
 

@@ -9,7 +9,6 @@ pub fn List(comptime T: type) type {
         items: std.ArrayList(T),
         selected: usize,
         offset: usize,
-        last_rendered_pos: usize,
 
         pub fn init(alloc: std.mem.Allocator) Self {
             return Self{
@@ -17,7 +16,6 @@ pub fn List(comptime T: type) type {
                 .items = std.ArrayList(T).init(alloc),
                 .selected = 0,
                 .offset = 0,
-                .last_rendered_pos = 0,
             };
         }
 
@@ -81,6 +79,7 @@ pub fn List(comptime T: type) type {
             self.offset = 0;
         }
 
+        // TODO: Move to view, the list should not have to care about this.
         pub fn render(
             self: *Self,
             window: vaxis.Window,
@@ -91,11 +90,19 @@ pub fn List(comptime T: type) type {
         ) !void {
             if (self.items.items.len != 0) {
                 for (self.items.items[self.offset..], 0..) |item, i| {
+                    const is_selected = self.selected - self.offset == i;
+
                     if (i > window.height) {
                         continue;
                     }
 
-                    const w = window.child(.{ .y_off = i });
+                    const w = window.child(.{
+                        .y_off = i,
+                        .height = .{ .limit = 1 },
+                    });
+                    w.fill(vaxis.Cell{
+                        .style = if (is_selected) selected_item_style orelse .{} else style orelse .{},
+                    });
 
                     if (callback) |cb| {
                         cb(w);
@@ -104,11 +111,9 @@ pub fn List(comptime T: type) type {
                     _ = try w.print(&.{
                         .{
                             .text = if (field) |f| @field(item, f) else item,
-                            .style = if (self.selected - self.offset == i) selected_item_style orelse .{} else style orelse .{},
+                            .style = if (is_selected) selected_item_style orelse .{} else style orelse style orelse .{},
                         },
                     }, .{});
-
-                    self.last_rendered_pos = i;
                 }
             }
         }

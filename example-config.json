@@ -5,6 +5,9 @@
     "preview_file": true,
     "styles": {
         "selected_list_item": {
+            "bg": {
+                "rgb": [45, 45, 45]
+            },
             "bold": true
         },
         "file_information": {
