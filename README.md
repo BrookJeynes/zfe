@@ -17,13 +17,15 @@
 - **Configurable Options**: Customize settings via an external configuration file.
 
 ## Roadmap
-- **Keybindings for Common Actions**:
+- Keybindings for Common Actions:
   - Delete files
   - Duplicate files
   - Copy files
   - Adjust settings
-- **Open Files in Editor**: Open files with a chosen text editor.
-- **Customizable keybinds**: Adjust the default keybinds.
+- Open Files in Editor
+- Customizable keybinds
+- Fuzzy search files
+- Syntax highlighting
 
 ## Install
 To install zfe, check the "Releases" section in Github and download the 
