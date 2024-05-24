@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const vaxis = @import("vaxis");
 const environment = @import("./environment.zig");
 
@@ -10,17 +11,28 @@ const Config = struct {
     styles: Styles,
 
     pub fn parse(self: *Config, alloc: std.mem.Allocator) !void {
-        var home_dir = try environment.getHomeDir();
-        defer home_dir.close();
-
-        const config_path = try std.fs.path.join(alloc, &.{ ".zfe", "config.json" });
+        var config_path: []u8 = undefined;
         defer alloc.free(config_path);
 
-        if (!environment.fileExists(home_dir, config_path)) {
+        var config_home: std.fs.Dir = undefined;
+        defer config_home.close();
+        if (try environment.get_xdg_config_home_dir()) |path| {
+            config_home = path;
+            config_path = try std.fs.path.join(alloc, &.{ "zfe", "config.json" });
+        } else {
+            if (try environment.get_home_dir()) |path| {
+                config_home = path;
+                config_path = try std.fs.path.join(alloc, &.{ ".zfe", "config.json" });
+            } else {
+                return error.MissingConfigHomeEnvironmentVariable;
+            }
+        }
+
+        if (!environment.file_exists(config_home, config_path)) {
             return error.ConfigNotFound;
         }
 
-        const config_file = try home_dir.openFile(config_path, .{});
+        const config_file = try config_home.openFile(config_path, .{});
         defer config_file.close();
 
         const config_str = try config_file.readToEndAlloc(alloc, 1024 * 1024 * 1024);

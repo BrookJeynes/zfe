@@ -29,9 +29,8 @@ pub fn main() !void {
 
     log.init();
 
-    config.parse(alloc) catch |err| {
-        log.err("Could not read config - {any}", .{err});
-        return;
+    config.parse(alloc) catch {
+        log.err("Could not read config, falling back to defaulting settings.", .{});
     };
 
     // TODO: Figure out size.
