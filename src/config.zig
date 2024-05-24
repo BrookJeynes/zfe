@@ -46,10 +46,16 @@ const Config = struct {
 };
 
 const Styles = struct {
-    selected_list_item: vaxis.Style = vaxis.Style{},
+    selected_list_item: vaxis.Style = vaxis.Style{
+        .bg = .{ .rgb = .{ 45, 45, 45 } },
+        .bold = true,
+    },
     list_item: vaxis.Style = vaxis.Style{},
     file_name: vaxis.Style = vaxis.Style{},
-    file_information: vaxis.Style = vaxis.Style{},
+    file_information: vaxis.Style = vaxis.Style{
+        .fg = .{ .rgb = .{ 0, 0, 0 } },
+        .bg = .{ .rgb = .{ 255, 255, 255 } },
+    },
 };
 
 pub var config: Config = Config{ .styles = Styles{} };
