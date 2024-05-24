@@ -6,10 +6,10 @@
 
 <br>
 
-**zfe** is a small Unix terminal file explorer written in Zig. 
+**zfe** is a small unix terminal file explorer written in Zig. 
 
 ## Features
-- **Simple to use**: Obvious keymaps with vim binding support.
+- **Simple to use**: Minimal and customizable keymaps with vim binding support.
 - **Image Previews**: Preview images with Kitty terminal.
 - **File Previews**: Preview contents of files directly in the terminal.
 - **Configurable Options**: Customize settings via an external configuration file.
