@@ -1,6 +1,6 @@
 const std = @import("std");
 const List = @import("./list.zig").List;
-const config = @import("./main.zig").config;
+const config = &@import("./config.zig").config;
 
 const Self = @This();
 

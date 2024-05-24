@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const log = &@import("./log.zig").log;
+const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const View = @import("./view.zig");
 
@@ -16,37 +17,6 @@ const Event = union(enum) {
 
 var vx: vaxis.Vaxis = undefined;
 
-const Config = struct {
-    show_hidden: bool,
-    sort_dirs: bool,
-    show_images: bool,
-    preview_file: bool,
-};
-
-const Styles = struct {
-    selected_list_item: vaxis.Style,
-    list_item: vaxis.Style,
-    file_name: vaxis.Style,
-    file_information: vaxis.Style,
-};
-
-pub const styles = Styles{
-    .file_name = .{},
-    .list_item = .{},
-    .selected_list_item = .{ .bold = true },
-    .file_information = .{
-        .fg = .{ .rgb = .{ 0, 0, 0 } },
-        .bg = .{ .rgb = .{ 255, 255, 255 } },
-    },
-};
-
-pub const config = Config{
-    .show_hidden = false,
-    .sort_dirs = true,
-    .show_images = true,
-    .preview_file = true,
-};
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -58,6 +28,7 @@ pub fn main() !void {
     var file_metadata = try view.dir.metadata();
 
     log.init();
+    try config.parse(alloc, "config.json");
 
     // TODO: Figure out size.
     var file_buf: [4096]u8 = undefined;
@@ -78,7 +49,6 @@ pub fn main() !void {
     defer loop.stop();
 
     try vx.enterAltScreen();
-    defer vx.exitAltScreen() catch {};
     try vx.queryTerminal();
 
     var last_pressed: ?vaxis.Key = null;
@@ -163,7 +133,7 @@ pub fn main() !void {
             .width = if (config.preview_file) .{ .limit = win.width / 2 } else .{ .limit = win.width },
             .height = .{ .limit = bottom_div },
         });
-        bottom_left_bar.fill(vaxis.Cell{ .style = styles.file_information });
+        bottom_left_bar.fill(vaxis.Cell{ .style = config.styles.file_information });
 
         const bottom_right_bar = win.child(.{
             .x_off = (win.width / 2) + 5,
@@ -208,7 +178,7 @@ pub fn main() !void {
 
                     file_metadata = try view.sub_dir.metadata();
 
-                    try view.sub_entries.render(right_bar, null, styles.list_item, null, null);
+                    try view.sub_entries.render(right_bar, null, config.styles.list_item, null, null);
                 },
                 .file => file: {
                     var file = try view.dir.openFile(entry.name, .{ .mode = .read_only });
@@ -281,10 +251,10 @@ pub fn main() !void {
             ),
             std.fmt.fmtIntSizeDec(file_metadata.size()),
         });
-        _ = try bottom_left_bar.print(&.{vaxis.Segment{ .text = file_information, .style = styles.file_information }}, .{});
+        _ = try bottom_left_bar.print(&.{vaxis.Segment{ .text = file_information, .style = config.styles.file_information }}, .{});
         _ = try bottom_right_bar.print(&.{vaxis.Segment{
             .text = if (last_pressed) |key| key.text.? else "",
-            .style = if (config.preview_file) .{} else styles.file_information,
+            .style = if (config.preview_file) .{} else config.styles.file_information,
         }}, .{});
 
         if (config.preview_file == true) {
@@ -293,12 +263,12 @@ pub fn main() !void {
                 const file_name = try std.fmt.bufPrint(&file_name_buf, "[{s}]", .{entry.name});
                 _ = try top_right_bar.print(&.{vaxis.Segment{
                     .text = file_name,
-                    .style = styles.file_name,
+                    .style = config.styles.file_name,
                 }}, .{});
             } else |_| {}
         }
 
-        try view.entries.render(left_bar, "name", styles.list_item, styles.selected_list_item, null);
+        try view.entries.render(left_bar, "name", config.styles.list_item, config.styles.selected_list_item, null);
 
         try vx.render();
 

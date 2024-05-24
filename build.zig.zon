@@ -7,7 +7,7 @@
     .dependencies = .{
         .vaxis = .{
             .path = "./external/libvaxis/"
-        }
+        },
     },
 
     .paths = .{
