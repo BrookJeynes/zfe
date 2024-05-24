@@ -5,8 +5,8 @@ const environment = @import("./environment.zig");
 
 const Config = struct {
     show_hidden: bool = true,
-    sort_dirs: bool = false,
-    show_images: bool = false,
+    sort_dirs: bool = true,
+    show_images: bool = true,
     preview_file: bool = true,
     styles: Styles,
 
