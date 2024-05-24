@@ -1,3 +1,0 @@
-[submodule "external/libvaxis"]
-	path = external/libvaxis
-	url = git@github.com:rockorager/libvaxis.git

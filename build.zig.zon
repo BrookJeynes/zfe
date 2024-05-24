@@ -6,7 +6,8 @@
 
     .dependencies = .{
         .vaxis = .{
-            .path = "./external/libvaxis/"
+            .url = "https://github.com/rockorager/libvaxis/archive/0333e178bdccb786bf8ceedb7203068b8177716d.tar.gz",
+            .hash = "12205cb5b81b6dac93dbd3fea7e7cf0d408db1f77e2aa1db4c6bcffc6ec82d623d01",
         },
     },
 
