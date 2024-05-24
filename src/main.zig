@@ -41,8 +41,11 @@ pub fn main() !void {
     var image: ?vaxis.Image = null;
     var path: [std.fs.max_path_bytes]u8 = undefined;
     var last_path: [std.fs.max_path_bytes]u8 = undefined;
+    var was_error: bool = false;
 
-    try view.populate();
+    view.populate() catch {
+        was_error = true;
+    };
 
     vx = try vaxis.init(alloc, .{});
     defer vx.deinit(alloc);
@@ -56,7 +59,6 @@ pub fn main() !void {
 
     var last_pressed: ?vaxis.Key = null;
     var last_known_height: usize = vx.window().height;
-    var was_error: bool = false;
     while (true) {
         const event = loop.nextEvent();
 
