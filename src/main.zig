@@ -238,9 +238,7 @@ pub fn main() !void {
         }
 
         if (image) |img| {
-            const scale = true;
-            const z_index = 0;
-            img.draw(right_bar, scale, z_index);
+            try img.draw(right_bar, .{ .scale = .fit });
         }
 
         _ = try top_left_bar.print(&.{vaxis.Segment{ .text = try view.full_path(".") }}, .{});
