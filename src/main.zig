@@ -336,6 +336,7 @@ pub fn main() !void {
         try vx.render();
 
         last_known_height = left_bar.height;
+        fbs.reset();
     }
 }
 
