@@ -25,6 +25,54 @@ Configure `zfe` by editing the external configuration file located at either:
 - `$HOME/.zfe/config.json`
 - `$XDG_CONFIG_HOME/zfe/config.json`.
 
+An example config file can be found [here](https://github.com/BrookJeynes/zfe/blob/main/example-config.json).
+
+Config schema:
+```
+Config = struct {
+    .show_hidden: bool,
+    .sort_dirs: bool,
+    .show_images: bool,
+    .preview_file: bool,
+    .styles: Styles,
+}
+
+Styles = struct {
+    .selected_list_item: Style,
+    .list_item: Style,
+    .file_name: Style,
+    .file_information: Style
+    .error_bar: Style,
+}
+
+Style = struct {
+    .fg: Color,
+    .bg: Color,
+    .ul: Color,
+    .ul_style = .{
+        off,
+        single,
+        double,
+        curly,
+        dotted,
+        dashed,
+    }
+    .bold: bool,
+    .dim: bool,
+    .italic: bool,
+    .blink: bool,
+    .reverse: bool,
+    .invisible: bool,
+    .strikethrough: bool,
+}
+
+Color = enum{
+    default,
+    index: u8,
+    rgb: [3]u8,
+}
+```
+
 ## Keybinds
 ```
 j / <Down>         :Go down.

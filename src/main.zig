@@ -41,11 +41,8 @@ pub fn main() !void {
     var image: ?vaxis.Image = null;
     var path: [std.fs.max_path_bytes]u8 = undefined;
     var last_path: [std.fs.max_path_bytes]u8 = undefined;
-    var was_error: bool = false;
 
-    view.populate() catch {
-        was_error = true;
-    };
+    try view.populate_entries();
 
     vx = try vaxis.init(alloc, .{});
     defer vx.deinit(alloc);
@@ -56,6 +53,10 @@ pub fn main() !void {
 
     try vx.enterAltScreen();
     try vx.queryTerminal();
+
+    var err_len: usize = 0;
+    var err_buf: [1024]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&err_buf);
 
     var last_pressed: ?vaxis.Key = null;
     var last_known_height: usize = vx.window().height;
@@ -70,13 +71,23 @@ pub fn main() !void {
 
                 switch (key.codepoint) {
                     '-', 'h', Key.left => {
-                        view.cleanup();
-                        view.open("../") catch {
-                            was_error = true;
-                        };
-                        view.populate() catch {
-                            was_error = true;
-                        };
+                        err_len = 0;
+
+                        if (view.dir.openDir("../", .{ .iterate = true })) |dir| {
+                            view.dir = dir;
+                            view.cleanup();
+                            view.populate_entries() catch |err| {
+                                err_len = switch (err) {
+                                    error.AccessDenied => try fbs.write("Permission denied."),
+                                    else => try fbs.write("An unknown error occurred."),
+                                };
+                            };
+                        } else |err| {
+                            err_len = switch (err) {
+                                error.AccessDenied => try fbs.write("Permission denied."),
+                                else => try fbs.write("An unknown error occurred."),
+                            };
+                        }
                         last_pressed = null;
                     },
                     Key.enter, 'l', Key.right => {
@@ -84,18 +95,27 @@ pub fn main() !void {
 
                         switch (entry.kind) {
                             .directory => {
-                                view.open(entry.name) catch {
-                                    was_error = true;
-                                };
-                                view.cleanup();
-                                view.populate() catch {
-                                    was_error = true;
-                                };
+                                err_len = 0;
+                                if (view.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
+                                    view.dir = dir;
+                                    view.cleanup();
+                                    view.populate_entries() catch |err| {
+                                        err_len = switch (err) {
+                                            error.AccessDenied => try fbs.write("Permission denied."),
+                                            else => try fbs.write("An unknown error occurred."),
+                                        };
+                                    };
+                                } else |err| {
+                                    err_len = switch (err) {
+                                        error.AccessDenied => try fbs.write("Permission denied."),
+                                        else => try fbs.write("An unknown error occurred."),
+                                    };
+                                }
+                                last_pressed = null;
                             },
                             .file => {},
                             else => {},
                         }
-                        last_pressed = null;
                     },
                     'j', Key.down => {
                         view.entries.next(last_known_height);
@@ -132,8 +152,15 @@ pub fn main() !void {
         win.clear();
 
         const top_div = 1;
+        const err_div = 1;
         const bottom_div = 1;
 
+        const err_bar = win.child(.{
+            .x_off = 0,
+            .y_off = top_div,
+            .width = .{ .limit = win.width },
+            .height = .{ .limit = err_div },
+        });
         const top_left_bar = win.child(.{
             .x_off = 0,
             .y_off = 0,
@@ -177,88 +204,103 @@ pub fn main() !void {
             .height = .{ .limit = win.height - (top_right_bar.height + bottom_right_bar.height + top_div + bottom_div) },
         });
 
-        if (was_error == true) {
-            _ = try right_bar.print(&.{
-                .{
-                    .text = "An error occured :(",
+        if (view.entries.all().len > 0 and config.preview_file == true) {
+            const entry = try view.entries.get(view.entries.selected);
+
+            @memcpy(&last_path, &path);
+            last_item_path = last_path[0..current_item_path.len];
+            current_item_path = try std.fmt.bufPrint(&path, "{s}/{s}", .{ try view.full_path("."), entry.name });
+
+            switch (entry.kind) {
+                .directory => {
+                    view.cleanup_sub();
+                    if (view.populate_sub_entries(entry.name)) {
+                        try view.write_sub_entries(right_bar, config.styles.list_item);
+                    } else |err| {
+                        err_len = switch (err) {
+                            error.AccessDenied => try fbs.write("Permission denied."),
+                            else => try fbs.write("An unknown error occurred."),
+                        };
+                    }
                 },
-            }, .{});
-            was_error = false;
-        } else {
-            if (view.entries.all().len > 0 and config.preview_file == true) {
-                const entry = try view.entries.get(view.entries.selected);
+                .file => file: {
+                    var file = view.dir.openFile(entry.name, .{ .mode = .read_only }) catch |err| {
+                        err_len = switch (err) {
+                            error.AccessDenied => try fbs.write("Permission denied."),
+                            else => try fbs.write("An unknown error occurred."),
+                        };
 
-                @memcpy(&last_path, &path);
-                last_item_path = last_path[0..current_item_path.len];
-                current_item_path = try std.fmt.bufPrint(&path, "{s}/{s}", .{ try view.full_path("."), entry.name });
-
-                switch (entry.kind) {
-                    .directory => {
-                        view.cleanup_sub();
-                        try view.open_sub(current_item_path);
-                        try view.populate_sub();
-
-                        file_metadata = try view.sub_dir.metadata();
-
-                        try view.sub_entries.render(right_bar, null, config.styles.list_item, null, null);
-                    },
-                    .file => file: {
-                        var file = try view.dir.openFile(entry.name, .{ .mode = .read_only });
-                        defer file.close();
-                        const bytes = try file.readAll(&file_buf);
-
-                        // Handle image.
-                        if (config.show_images == true) unsupported_terminal: {
-                            const supported: [1][]const u8 = .{".png"};
-
-                            for (supported) |ext| {
-                                if (std.mem.eql(u8, get_extension(entry.name), ext)) {
-                                    // Don't re-render preview if we haven't changed selection.
-                                    if (std.mem.eql(u8, last_item_path, current_item_path)) break :file;
-
-                                    if (vx.loadImage(alloc, .{ .path = current_item_path })) |img| {
-                                        image = img;
-                                    } else |_| {
-                                        image = null;
-                                        break :unsupported_terminal;
-                                    }
-
-                                    break :file;
-                                } else {
-                                    // Free any image we might have already.
-                                    if (image) |img| {
-                                        vx.freeImage(img.id);
-                                    }
-                                }
-                            }
-                        }
-
-                        // Handle utf-8.
-                        if (std.unicode.utf8ValidateSlice(file_buf[0..bytes])) {
-                            _ = try right_bar.print(&.{
-                                .{
-                                    .text = file_buf[0..bytes],
-                                },
-                            }, .{});
-                            break :file;
-                        }
-
-                        // Fallback to no preview.
                         _ = try right_bar.print(&.{
                             .{
                                 .text = "No preview available.",
                             },
                         }, .{});
-                    },
-                    else => {
-                        _ = try right_bar.print(&.{vaxis.Segment{ .text = current_item_path }}, .{});
-                    },
-                }
+
+                        break :file;
+                    };
+                    defer file.close();
+                    const bytes = try file.readAll(&file_buf);
+
+                    // Handle image.
+                    if (config.show_images == true) unsupported_terminal: {
+                        const supported: [1][]const u8 = .{".png"};
+
+                        for (supported) |ext| {
+                            if (std.mem.eql(u8, get_extension(entry.name), ext)) {
+                                // Don't re-render preview if we haven't changed selection.
+                                if (std.mem.eql(u8, last_item_path, current_item_path)) break :file;
+
+                                if (vx.loadImage(alloc, .{ .path = current_item_path })) |img| {
+                                    image = img;
+                                } else |_| {
+                                    image = null;
+                                    break :unsupported_terminal;
+                                }
+
+                                break :file;
+                            } else {
+                                // Free any image we might have already.
+                                if (image) |img| {
+                                    vx.freeImage(img.id);
+                                }
+                            }
+                        }
+                    }
+
+                    // Handle utf-8.
+                    if (std.unicode.utf8ValidateSlice(file_buf[0..bytes])) {
+                        _ = try right_bar.print(&.{
+                            .{
+                                .text = file_buf[0..bytes],
+                            },
+                        }, .{});
+                        break :file;
+                    }
+
+                    // Fallback to no preview.
+                    _ = try right_bar.print(&.{
+                        .{
+                            .text = "No preview available.",
+                        },
+                    }, .{});
+                },
+                else => {
+                    _ = try right_bar.print(&.{vaxis.Segment{ .text = current_item_path }}, .{});
+                },
             }
         }
 
         if (image) |img| {
             try img.draw(right_bar, .{ .scale = .fit });
+        }
+
+        if (err_len > 0) {
+            _ = try err_bar.print(&.{
+                .{
+                    .text = err_buf[0..err_len],
+                    .style = config.styles.error_bar,
+                },
+            }, .{});
         }
 
         _ = try top_left_bar.print(&.{vaxis.Segment{ .text = try view.full_path(".") }}, .{});
@@ -289,7 +331,7 @@ pub fn main() !void {
             } else |_| {}
         }
 
-        try view.entries.render(left_bar, "name", config.styles.list_item, config.styles.selected_list_item, null);
+        try view.write_entries(left_bar, config.styles.selected_list_item, config.styles.list_item, null);
 
         try vx.render();
 

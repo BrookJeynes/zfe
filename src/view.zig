@@ -1,12 +1,12 @@
 const std = @import("std");
 const List = @import("./list.zig").List;
 const config = &@import("./config.zig").config;
+const vaxis = @import("vaxis");
 
 const Self = @This();
 
 alloc: std.mem.Allocator,
 dir: std.fs.Dir,
-sub_dir: std.fs.Dir = undefined,
 path_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_contents: [4096]u8 = undefined,
 entries: List(std.fs.Dir.Entry),
@@ -30,28 +30,63 @@ pub fn deinit(self: *Self) void {
     self.sub_entries.deinit();
 
     self.dir.close();
-    self.sub_dir.close();
-}
-
-pub fn open(self: *Self, relative_path: []const u8) !void {
-    self.dir = try self.dir.openDir(relative_path, .{ .iterate = true });
-}
-
-pub fn open_sub(self: *Self, relative_path: []const u8) !void {
-    self.sub_dir = try self.dir.openDir(relative_path, .{ .iterate = true });
 }
 
 pub fn full_path(self: *Self, relative_path: []const u8) ![]const u8 {
     return try self.dir.realpath(relative_path, &self.path_buf);
 }
 
-pub fn populate(self: *Self) !void {
-    var it = self.dir.iterate();
+pub fn populate_sub_entries(
+    self: *Self,
+    relative_path: []const u8,
+) !void {
+    var dir = try self.dir.openDir(relative_path, .{ .iterate = true });
+    defer dir.close();
+
+    var it = dir.iterate();
     while (try it.next()) |entry| {
-        if (std.mem.startsWith(u8, entry.name, ".") and config.show_hidden == false) {
+        try self.sub_entries.append(try self.alloc.dupe(u8, entry.name));
+    }
+
+    if (config.sort_dirs == true) {
+        std.mem.sort([]const u8, self.sub_entries.items.items, {}, sort_sub_entry);
+    }
+}
+
+pub fn write_sub_entries(
+    self: *Self,
+    window: vaxis.Window,
+    style: vaxis.Style,
+) !void {
+    for (self.sub_entries.items.items, 0..) |item, i| {
+        if (std.mem.startsWith(u8, item, ".") and config.show_hidden == false) {
             continue;
         }
 
+        if (i > window.height) {
+            continue;
+        }
+
+        const w = window.child(.{
+            .y_off = i,
+            .height = .{ .limit = 1 },
+        });
+        w.fill(vaxis.Cell{
+            .style = style,
+        });
+
+        _ = try w.print(&.{
+            .{
+                .text = item,
+                .style = style,
+            },
+        }, .{});
+    }
+}
+
+pub fn populate_entries(self: *Self) !void {
+    var it = self.dir.iterate();
+    while (try it.next()) |entry| {
         try self.entries.append(.{
             .kind = entry.kind,
             .name = try self.alloc.dupe(u8, entry.name),
@@ -63,27 +98,51 @@ pub fn populate(self: *Self) !void {
     }
 }
 
+pub fn write_entries(
+    self: *Self,
+    window: vaxis.Window,
+    selected_list_item_style: vaxis.Style,
+    list_item_style: vaxis.Style,
+    callback: ?*const fn (item_win: vaxis.Window) void,
+) !void {
+    for (self.entries.items.items[self.entries.offset..], 0..) |item, i| {
+        const is_selected = self.entries.selected - self.entries.offset == i;
+
+        if (std.mem.startsWith(u8, item.name, ".") and config.show_hidden == false) {
+            continue;
+        }
+
+        if (i > window.height) {
+            continue;
+        }
+
+        const w = window.child(.{
+            .y_off = i,
+            .height = .{ .limit = 1 },
+        });
+        w.fill(vaxis.Cell{
+            .style = if (is_selected) selected_list_item_style else list_item_style,
+        });
+
+        if (callback) |cb| {
+            cb(w);
+        }
+
+        _ = try w.print(&.{
+            .{
+                .text = item.name,
+                .style = if (is_selected) selected_list_item_style else list_item_style,
+            },
+        }, .{});
+    }
+}
+
 fn sort_entry(_: void, lhs: std.fs.Dir.Entry, rhs: std.fs.Dir.Entry) bool {
     return std.mem.lessThan(u8, lhs.name, rhs.name);
 }
 
 fn sort_sub_entry(_: void, lhs: []const u8, rhs: []const u8) bool {
     return std.mem.lessThan(u8, lhs, rhs);
-}
-
-pub fn populate_sub(self: *Self) !void {
-    var it = self.sub_dir.iterate();
-    while (try it.next()) |entry| {
-        if (std.mem.startsWith(u8, entry.name, ".") and config.show_hidden == false) {
-            continue;
-        }
-
-        try self.sub_entries.append(try self.alloc.dupe(u8, entry.name));
-    }
-
-    if (config.sort_dirs == true) {
-        std.mem.sort([]const u8, self.sub_entries.items.items, {}, sort_sub_entry);
-    }
 }
 
 pub fn cleanup(self: *Self) void {

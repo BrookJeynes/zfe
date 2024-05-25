@@ -78,44 +78,5 @@ pub fn List(comptime T: type) type {
             self.selected = 0;
             self.offset = 0;
         }
-
-        // TODO: Move to view, the list should not have to care about this.
-        pub fn render(
-            self: *Self,
-            window: vaxis.Window,
-            comptime field: ?[]const u8,
-            style: ?vaxis.Style,
-            selected_item_style: ?vaxis.Style,
-            callback: ?*const fn (item_win: vaxis.Window) void,
-        ) !void {
-            if (self.items.items.len != 0) {
-                for (self.items.items[self.offset..], 0..) |item, i| {
-                    const is_selected = self.selected - self.offset == i;
-
-                    if (i > window.height) {
-                        continue;
-                    }
-
-                    const w = window.child(.{
-                        .y_off = i,
-                        .height = .{ .limit = 1 },
-                    });
-                    w.fill(vaxis.Cell{
-                        .style = if (is_selected) selected_item_style orelse .{} else style orelse .{},
-                    });
-
-                    if (callback) |cb| {
-                        cb(w);
-                    }
-
-                    _ = try w.print(&.{
-                        .{
-                            .text = if (field) |f| @field(item, f) else item,
-                            .style = if (is_selected) selected_item_style orelse .{} else style orelse style orelse .{},
-                        },
-                    }, .{});
-                }
-            }
-        }
     };
 }

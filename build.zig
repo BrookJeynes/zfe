@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const min_zig_string = "0.12.0";
-const version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 0 };
+const version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 1 };
 
 const targets: []const std.Target.Query = &.{
     .{ .cpu_arch = .aarch64, .os_tag = .macos },
