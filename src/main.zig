@@ -448,6 +448,10 @@ pub fn main() !void {
             }, .{});
         }
 
+        if (state == State.normal) {
+            win.hideCursor();
+        }
+
         try vx.render();
 
         last_known_height = left_bar.height;
