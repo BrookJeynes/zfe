@@ -36,8 +36,20 @@ pub fn main() !void {
 
     log.init();
 
-    config.parse(alloc) catch {
-        log.err("Could not read config, falling back to defaulting settings.", .{});
+    config.parse(alloc) catch |err| switch (err) {
+        error.ConfigNotFound => {},
+        error.MissingConfigHomeEnvironmentVariable => {
+            log.err("Could not read config due to $HOME or $XDG_CONFIG_HOME not being set.", .{});
+            return;
+        },
+        error.SyntaxError => {
+            log.err("Could not read config due to a syntax error.", .{});
+            return;
+        },
+        else => {
+            log.err("Could not read config due to an unknown error.", .{});
+            return;
+        },
     };
 
     // TODO: Figure out size.
