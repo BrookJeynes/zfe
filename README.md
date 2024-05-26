@@ -19,7 +19,7 @@
 
 ## Install
 To install zfe, check the "Releases" section in Github and download the 
-appropriate version or build locally via `zig build run`.
+appropriate version or build locally via `zig build -Doptimize=ReleaseSafe`.
 
 ## Configuration
 Configure `zfe` by editing the external configuration file located at either:
