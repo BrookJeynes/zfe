@@ -76,6 +76,7 @@ Color = enum{
 
 ## Keybinds
 ```
+Normal mode:
 j / <Down>         :Go down.
 k / <Up>           :Go up.
 h / <Left> / -     :Go to the parent directory if exists.
@@ -83,6 +84,11 @@ l / <Right>        :Open item or change directory.
 gg                 :Go to the top.
 G                  :Go to the bottom.
 q / <CTRL-c>       :Exit.
+/                  :Enter search mode.
+
+Search mode:
+<Esc>              :Exit search mode.
+<Enter>            :Confirm search.
 ```
 
 ## Roadmap
