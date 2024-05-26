@@ -91,6 +91,7 @@ pub fn main() !void {
     var last_pressed: ?vaxis.Key = null;
     var last_known_height: usize = vx.window().height;
     while (true) {
+        err_len = 0;
         const event = loop.nextEvent();
 
         switch (state) {
@@ -103,7 +104,6 @@ pub fn main() !void {
 
                         switch (key.codepoint) {
                             '-', 'h', Key.left => {
-                                err_len = 0;
                                 text_input.clearAndFree();
 
                                 if (view.dir.openDir("../", .{ .iterate = true })) |dir| {
@@ -132,7 +132,6 @@ pub fn main() !void {
 
                                 switch (entry.kind) {
                                     .directory => {
-                                        err_len = 0;
                                         text_input.clearAndFree();
 
                                         if (view.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
@@ -430,11 +429,6 @@ pub fn main() !void {
 
         try view.write_entries(left_bar, config.styles.selected_list_item, config.styles.list_item, null);
 
-        if (state == State.input or text_input.grapheme_count > 0) {
-            err_len = 0;
-            text_input.draw(info_bar);
-        }
-
         if (err_len > 0) {
             if (text_input.grapheme_count > 0) {
                 text_input.clearAndFree();
@@ -446,6 +440,11 @@ pub fn main() !void {
                     .style = config.styles.error_bar,
                 },
             }, .{});
+        }
+
+        if (state == State.input or text_input.grapheme_count > 0) {
+            err_len = 0;
+            text_input.draw(info_bar);
         }
 
         if (state == State.normal) {
