@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const log = &@import("./log.zig").log;
+const environment = @import("./environment.zig");
 const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const View = @import("./view.zig");
@@ -44,7 +45,13 @@ pub fn main() !void {
 
     try view.populate_entries();
 
-    vx = try vaxis.init(alloc, .{});
+    vx = try vaxis.init(alloc, .{ .kitty_keyboard_flags = .{
+        .report_text = false,
+        .disambiguate = false,
+        .report_events = false,
+        .report_alternate_keys = false,
+        .report_all_as_ctl_seqs = false,
+    } });
     defer vx.deinit(alloc);
 
     var loop: vaxis.Loop(Event) = .{ .vaxis = &vx };
@@ -53,6 +60,7 @@ pub fn main() !void {
 
     try vx.enterAltScreen();
     try vx.queryTerminal();
+    vx.caps.kitty_keyboard = false;
 
     var err_len: usize = 0;
     var err_buf: [1024]u8 = undefined;
@@ -113,7 +121,20 @@ pub fn main() !void {
                                 }
                                 last_pressed = null;
                             },
-                            .file => {},
+                            .file => {
+                                if (environment.get_editor()) |editor| {
+                                    try vx.exitAltScreen();
+                                    loop.stop();
+                                    environment.open_file(alloc, view.dir, entry.name, editor) catch {
+                                        err_len = try fbs.write("Unable to open file.");
+                                    };
+                                    try loop.run();
+                                    try vx.enterAltScreen();
+                                    vx.queueRefresh();
+                                } else {
+                                    err_len = try fbs.write("$EDITOR is not set.");
+                                }
+                            },
                             else => {},
                         }
                     },

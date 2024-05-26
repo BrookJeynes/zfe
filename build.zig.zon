@@ -6,8 +6,8 @@
 
     .dependencies = .{
         .vaxis = .{
-            .url = "git+https://github.com/rockorager/libvaxis#3a3f7d32cfb71aa8eaf093188aad121ee33f33a5",
-            .hash = "12207eb7a833662c32391dbe84e10f5a7735f345424867b32e9d2d3d18ade3018e1f",
+            .url = "git+https://github.com/rockorager/libvaxis#0fa082033eb559fbc67c8b4eca355d262414c000",
+            .hash = "1220b99ce36908aa8ac1c2027d3938ef776e5686fb33a2975e80a8ba6e0086387216",
         },
     },
 

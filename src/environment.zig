@@ -4,37 +4,33 @@ const builtin = @import("builtin");
 const log = &@import("./log.zig").log;
 
 pub fn get_home_dir() !?std.fs.Dir {
-    switch (builtin.os.tag) {
-        .linux, .macos => {
-            return try std.fs.openDirAbsolute(std.posix.getenv("HOME") orelse {
-                return null;
-            }, .{ .iterate = true });
-        },
-        .windows => {
-            const utf16 = std.unicode.utf8ToUtf16LeStringLiteral;
-            return try std.fs.openDirAbsoluteW(std.process.getenvW(utf16("USERPROFILE")) orelse {
-                return null;
-            }, .{ .iterate = true });
-        },
-        else => @compileError("Unsupported OS"),
-    }
+    return try std.fs.openDirAbsolute(std.posix.getenv("HOME") orelse {
+        return null;
+    }, .{ .iterate = true });
 }
 
 pub fn get_xdg_config_home_dir() !?std.fs.Dir {
-    switch (builtin.os.tag) {
-        .linux, .macos => {
-            return try std.fs.openDirAbsolute(std.posix.getenv("XDG_CONFIG_HOME") orelse {
-                return null;
-            }, .{ .iterate = true });
-        },
-        .windows => {
-            const utf16 = std.unicode.utf8ToUtf16LeStringLiteral;
-            return try std.fs.openDirAbsoluteW(std.process.getenvW(utf16("XDG_CONFIG_HOME")) orelse {
-                return null;
-            }, .{ .iterate = true });
-        },
-        else => @compileError("Unsupported OS"),
+    return try std.fs.openDirAbsolute(std.posix.getenv("XDG_CONFIG_HOME") orelse {
+        return null;
+    }, .{ .iterate = true });
+}
+
+pub fn get_editor() ?[]const u8 {
+    const editor = std.posix.getenv("EDITOR");
+    if (editor) |e| {
+        if (std.mem.trim(u8, e, " ").len > 0) {
+            return e;
+        }
     }
+    return null;
+}
+
+pub fn open_file(alloc: std.mem.Allocator, dir: std.fs.Dir, file: []const u8, editor: []const u8) !void {
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path = try dir.realpath(file, &path_buf);
+
+    var child = std.process.Child.init(&.{ editor, path }, alloc);
+    _ = try child.spawnAndWait();
 }
 
 pub fn file_exists(dir: std.fs.Dir, path: []const u8) bool {
