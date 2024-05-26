@@ -8,8 +8,14 @@ const List = @import("./list.zig").List;
 const View = @import("./view.zig");
 
 const vaxis = @import("vaxis");
+const TextInput = @import("vaxis").widgets.TextInput;
 const Cell = vaxis.Cell;
 const Key = vaxis.Key;
+
+const State = enum {
+    normal,
+    input,
+};
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -43,7 +49,7 @@ pub fn main() !void {
     var path: [std.fs.max_path_bytes]u8 = undefined;
     var last_path: [std.fs.max_path_bytes]u8 = undefined;
 
-    try view.populate_entries();
+    try view.populate_entries("");
 
     vx = try vaxis.init(alloc, .{ .kitty_keyboard_flags = .{
         .report_text = false,
@@ -62,52 +68,40 @@ pub fn main() !void {
     try vx.queryTerminal();
     vx.caps.kitty_keyboard = false;
 
+    var text_input = TextInput.init(alloc, &vx.unicode);
+    defer text_input.deinit();
+
     var err_len: usize = 0;
     var err_buf: [1024]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&err_buf);
 
+    var state = State.normal;
     var last_pressed: ?vaxis.Key = null;
     var last_known_height: usize = vx.window().height;
     while (true) {
         const event = loop.nextEvent();
 
-        switch (event) {
-            .key_press => |key| {
-                if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
-                    break;
-                }
-
-                switch (key.codepoint) {
-                    '-', 'h', Key.left => {
-                        err_len = 0;
-
-                        if (view.dir.openDir("../", .{ .iterate = true })) |dir| {
-                            view.dir = dir;
-                            view.cleanup();
-                            view.populate_entries() catch |err| {
-                                err_len = switch (err) {
-                                    error.AccessDenied => try fbs.write("Permission denied."),
-                                    else => try fbs.write("An unknown error occurred."),
-                                };
-                            };
-                        } else |err| {
-                            err_len = switch (err) {
-                                error.AccessDenied => try fbs.write("Permission denied."),
-                                else => try fbs.write("An unknown error occurred."),
-                            };
+        switch (state) {
+            .normal => {
+                switch (event) {
+                    .key_press => |key| {
+                        if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
+                            break;
                         }
-                        last_pressed = null;
-                    },
-                    Key.enter, 'l', Key.right => {
-                        const entry = view.entries.get(view.entries.selected) catch continue;
 
-                        switch (entry.kind) {
-                            .directory => {
+                        switch (key.codepoint) {
+                            '-', 'h', Key.left => {
                                 err_len = 0;
-                                if (view.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
+                                text_input.clearAndFree();
+
+                                if (view.dir.openDir("../", .{ .iterate = true })) |dir| {
                                     view.dir = dir;
+
+                                    var fuzzy_buf: [std.fs.max_path_bytes]u8 = undefined;
+                                    const fuzzy = text_input.sliceToCursor(&fuzzy_buf);
+
                                     view.cleanup();
-                                    view.populate_entries() catch |err| {
+                                    view.populate_entries(fuzzy) catch |err| {
                                         err_len = switch (err) {
                                             error.AccessDenied => try fbs.write("Permission denied."),
                                             else => try fbs.write("An unknown error occurred."),
@@ -121,51 +115,129 @@ pub fn main() !void {
                                 }
                                 last_pressed = null;
                             },
-                            .file => {
-                                if (environment.get_editor()) |editor| {
-                                    try vx.exitAltScreen();
-                                    loop.stop();
-                                    environment.open_file(alloc, view.dir, entry.name, editor) catch {
-                                        err_len = try fbs.write("Unable to open file.");
-                                    };
-                                    try loop.run();
-                                    try vx.enterAltScreen();
-                                    vx.queueRefresh();
-                                } else {
-                                    err_len = try fbs.write("$EDITOR is not set.");
+                            Key.enter, 'l', Key.right => {
+                                const entry = view.entries.get(view.entries.selected) catch continue;
+
+                                switch (entry.kind) {
+                                    .directory => {
+                                        err_len = 0;
+                                        text_input.clearAndFree();
+
+                                        if (view.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
+                                            view.dir = dir;
+
+                                            var fuzzy_buf: [std.fs.max_path_bytes]u8 = undefined;
+                                            const fuzzy = text_input.sliceToCursor(&fuzzy_buf);
+
+                                            view.cleanup();
+                                            view.populate_entries(fuzzy) catch |err| {
+                                                err_len = switch (err) {
+                                                    error.AccessDenied => try fbs.write("Permission denied."),
+                                                    else => try fbs.write("An unknown error occurred."),
+                                                };
+                                            };
+                                        } else |err| {
+                                            err_len = switch (err) {
+                                                error.AccessDenied => try fbs.write("Permission denied."),
+                                                else => try fbs.write("An unknown error occurred."),
+                                            };
+                                        }
+                                        last_pressed = null;
+                                    },
+                                    .file => {
+                                        if (environment.get_editor()) |editor| {
+                                            try vx.exitAltScreen();
+                                            loop.stop();
+
+                                            environment.open_file(alloc, view.dir, entry.name, editor) catch {
+                                                err_len = try fbs.write("Unable to open file.");
+                                            };
+
+                                            try loop.run();
+                                            try vx.enterAltScreen();
+                                            vx.queueRefresh();
+                                        } else {
+                                            err_len = try fbs.write("$EDITOR is not set.");
+                                        }
+                                    },
+                                    else => {},
                                 }
                             },
-                            else => {},
-                        }
-                    },
-                    'j', Key.down => {
-                        view.entries.next(last_known_height);
-                        last_pressed = null;
-                    },
-                    'k', Key.up => {
-                        view.entries.previous(last_known_height);
-                        last_pressed = null;
-                    },
-                    'g' => {
-                        if (key.matches('G', .{})) {
-                            view.entries.select_last(last_known_height);
-                            last_pressed = null;
-                        } else if (last_pressed) |k| {
-                            if (k.codepoint == 103) {
-                                view.entries.select_first();
+                            'j', Key.down => {
+                                view.entries.next(last_known_height);
                                 last_pressed = null;
-                            }
-                        } else {
-                            last_pressed = key;
+                            },
+                            'k', Key.up => {
+                                view.entries.previous(last_known_height);
+                                last_pressed = null;
+                            },
+                            'G' => {
+                                view.entries.select_last(last_known_height);
+                                last_pressed = null;
+                            },
+                            'g' => {
+                                if (last_pressed) |k| {
+                                    if (k.codepoint == 103) {
+                                        view.entries.select_first();
+                                        last_pressed = null;
+                                    }
+                                } else {
+                                    last_pressed = key;
+                                }
+                            },
+                            '/' => state = State.input,
+                            else => {
+                                // log.debug("codepoint: {d}\n", .{key.codepoint});
+                            },
                         }
                     },
-                    else => {
-                        // log.debug("codepoint: {d}\n", .{key.codepoint});
+                    .winsize => |ws| {
+                        try vx.resize(alloc, ws);
                     },
                 }
             },
-            .winsize => |ws| {
-                try vx.resize(alloc, ws);
+            .input => {
+                switch (event) {
+                    .key_press => |key| {
+                        if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
+                            break;
+                        }
+
+                        switch (key.codepoint) {
+                            Key.escape => {
+                                text_input.clearAndFree();
+                                state = State.normal;
+
+                                view.cleanup();
+                                view.populate_entries("") catch |err| {
+                                    err_len = switch (err) {
+                                        error.AccessDenied => try fbs.write("Permission denied."),
+                                        else => try fbs.write("An unknown error occurred."),
+                                    };
+                                };
+                            },
+                            Key.enter => {
+                                state = State.normal;
+                            },
+                            else => {
+                                try text_input.update(.{ .key_press = key });
+
+                                var fuzzy_buf: [std.fs.max_path_bytes]u8 = undefined;
+                                const fuzzy = text_input.sliceToCursor(&fuzzy_buf);
+                                view.cleanup();
+                                view.populate_entries(fuzzy) catch |err| {
+                                    err_len = switch (err) {
+                                        error.AccessDenied => try fbs.write("Permission denied."),
+                                        else => try fbs.write("An unknown error occurred."),
+                                    };
+                                };
+                            },
+                        }
+                    },
+                    .winsize => |ws| {
+                        try vx.resize(alloc, ws);
+                    },
+                }
             },
         }
 
@@ -173,15 +245,16 @@ pub fn main() !void {
         win.clear();
 
         const top_div = 1;
-        const err_div = 1;
+        const info_div = 1;
         const bottom_div = 1;
 
-        const err_bar = win.child(.{
+        const info_bar = win.child(.{
             .x_off = 0,
             .y_off = top_div,
             .width = .{ .limit = win.width },
-            .height = .{ .limit = err_div },
+            .height = .{ .limit = info_div },
         });
+
         const top_left_bar = win.child(.{
             .x_off = 0,
             .y_off = 0,
@@ -315,15 +388,6 @@ pub fn main() !void {
             try img.draw(right_bar, .{ .scale = .fit });
         }
 
-        if (err_len > 0) {
-            _ = try err_bar.print(&.{
-                .{
-                    .text = err_buf[0..err_len],
-                    .style = config.styles.error_bar,
-                },
-            }, .{});
-        }
-
         _ = try top_left_bar.print(&.{vaxis.Segment{ .text = try view.full_path(".") }}, .{});
 
         var file_information_buf: [1024]u8 = undefined;
@@ -353,6 +417,24 @@ pub fn main() !void {
         }
 
         try view.write_entries(left_bar, config.styles.selected_list_item, config.styles.list_item, null);
+
+        if (state == State.input or text_input.grapheme_count > 0) {
+            err_len = 0;
+            text_input.draw(info_bar);
+        }
+
+        if (err_len > 0) {
+            if (text_input.grapheme_count > 0) {
+                text_input.clearAndFree();
+            }
+
+            _ = try info_bar.print(&.{
+                .{
+                    .text = err_buf[0..err_len],
+                    .style = config.styles.error_bar,
+                },
+            }, .{});
+        }
 
         try vx.render();
 

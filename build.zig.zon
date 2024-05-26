@@ -9,6 +9,10 @@
             .url = "git+https://github.com/rockorager/libvaxis#0fa082033eb559fbc67c8b4eca355d262414c000",
             .hash = "1220b99ce36908aa8ac1c2027d3938ef776e5686fb33a2975e80a8ba6e0086387216",
         },
+        .fuzzig = .{
+            .url = "git+https://github.com/fjebaker/fuzzig#c6a0e0ca1a24e55ebdce51c83b918d4325ca7032",
+            .hash = "1220214dfb9a0806d9c8a059beb9e3b07811fd138cd5baeb9d1da432588920a084bf",
+        },
     },
 
     .paths = .{

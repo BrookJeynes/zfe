@@ -3,6 +3,8 @@ const List = @import("./list.zig").List;
 const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
 
+const fuzzig = @import("fuzzig");
+
 const Self = @This();
 
 alloc: std.mem.Allocator,
@@ -11,6 +13,7 @@ path_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_contents: [4096]u8 = undefined,
 entries: List(std.fs.Dir.Entry),
 sub_entries: List([]const u8),
+searcher: fuzzig.Ascii,
 
 pub fn init(alloc: std.mem.Allocator) !Self {
     return Self{
@@ -19,6 +22,12 @@ pub fn init(alloc: std.mem.Allocator) !Self {
         .file_contents = undefined,
         .entries = List(std.fs.Dir.Entry).init(alloc),
         .sub_entries = List([]const u8).init(alloc),
+        .searcher = try fuzzig.Ascii.init(
+            alloc,
+            std.fs.max_path_bytes,
+            std.fs.max_path_bytes,
+            .{ .case_sensitive = false },
+        ),
     };
 }
 
@@ -30,6 +39,7 @@ pub fn deinit(self: *Self) void {
     self.sub_entries.deinit();
 
     self.dir.close();
+    self.searcher.deinit();
 }
 
 pub fn full_path(self: *Self, relative_path: []const u8) ![]const u8 {
@@ -84,9 +94,14 @@ pub fn write_sub_entries(
     }
 }
 
-pub fn populate_entries(self: *Self) !void {
+pub fn populate_entries(self: *Self, fuzzy_search: []const u8) !void {
     var it = self.dir.iterate();
     while (try it.next()) |entry| {
+        const score = self.searcher.score(entry.name, fuzzy_search) orelse 0;
+        if (fuzzy_search.len > 0 and score < 1) {
+            continue;
+        }
+
         try self.entries.append(.{
             .kind = entry.kind,
             .name = try self.alloc.dupe(u8, entry.name),

@@ -15,6 +15,7 @@
 - **Image Previews**: Preview images with Kitty terminal.
 - **File Previews**: Preview contents of files directly in the terminal.
 - **Configurable Options**: Customize settings via an external configuration file.
+- **Fuzzy Search**: Fuzzy search within directories.
 
 ## Install
 To install zfe, check the "Releases" section in Github and download the 
@@ -90,9 +91,7 @@ q / <CTRL-c>       :Exit.
   - Duplicate files
   - Copy files
   - Adjust settings
-- Open Files in Editor
 - Customizable keybinds
-- Fuzzy search files
 - Syntax highlighting
 
 ## Contributing

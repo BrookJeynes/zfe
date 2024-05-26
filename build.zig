@@ -30,8 +30,8 @@ pub fn build(b: *std.Build) !void {
     options.addOption(std.SemanticVersion, "zfe_version", version);
     const exe_options_module = options.createModule();
 
-    const libvaxis_dep = b.dependency("vaxis", .{ .target = target });
-    const libvaxis_mod = libvaxis_dep.module("vaxis");
+    const libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
+    const fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
 
     const exe = b.addExecutable(.{
         .name = "zfe",
@@ -39,7 +39,8 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("vaxis", libvaxis_mod);
+    exe.root_module.addImport("vaxis", libvaxis);
+    exe.root_module.addImport("fuzzig", fuzzig);
     exe.root_module.addImport("options", exe_options_module);
     b.installArtifact(exe);
 
