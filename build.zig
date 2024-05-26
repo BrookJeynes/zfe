@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const min_zig_string = "0.12.0";
-const version = std.SemanticVersion{ .major = 0, .minor = 1, .patch = 1 };
+const version = std.SemanticVersion{ .major = 0, .minor = 2, .patch = 0 };
 
 const targets: []const std.Target.Query = &.{
     .{ .cpu_arch = .aarch64, .os_tag = .macos },
@@ -58,8 +58,8 @@ pub fn build(b: *std.Build) !void {
     // for (targets) |t| {
     //     const build_target = b.resolveTargetQuery(t);
     //
-    //     const build_libvaxis_dep = b.dependency("vaxis", .{ .target = target });
-    //     const build_libvaxis_mod = build_libvaxis_dep.module("vaxis");
+    //     const build_libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
+    //     const build_fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
     //
     //     const build_exe = b.addExecutable(.{
     //         .name = "zfe",
@@ -67,7 +67,8 @@ pub fn build(b: *std.Build) !void {
     //         .target = build_target,
     //         .optimize = optimize,
     //     });
-    //     build_exe.root_module.addImport("vaxis", build_libvaxis_mod);
+    //     build_exe.root_module.addImport("fuzzig", build_fuzzig);
+    //     build_exe.root_module.addImport("vaxis", build_libvaxis);
     //     build_exe.root_module.addImport("options", exe_options_module);
     //     b.installArtifact(exe);
     //
