@@ -59,6 +59,9 @@ const Styles = struct {
     error_bar: vaxis.Style = vaxis.Style{
         .bg = .{ .rgb = .{ 216, 74, 74 } },
     },
+    info_bar: vaxis.Style = vaxis.Style{
+        .bg = .{ .rgb = .{ 0, 140, 200 } },
+    },
 };
 
 pub var config: Config = Config{ .styles = Styles{} };

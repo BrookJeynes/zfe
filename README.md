@@ -44,6 +44,7 @@ Styles = struct {
     .file_name: Style,
     .file_information: Style
     .error_bar: Style,
+    .info_bar: Style,
 }
 
 Style = struct {
@@ -77,28 +78,26 @@ Color = enum{
 ## Keybinds
 ```
 Normal mode:
+q / <CTRL-c>       :Exit.
+
 j / <Down>         :Go down.
 k / <Up>           :Go up.
 h / <Left> / -     :Go to the parent directory if exists.
 l / <Right>        :Open item or change directory.
 gg                 :Go to the top.
 G                  :Go to the bottom.
-q / <CTRL-c>       :Exit.
-/                  :Enter search mode.
 
-Search mode:
-<Esc>              :Exit search mode.
-<Enter>            :Confirm search.
+D                  :Delete item.
+u                  :Undo delete.
+
+d                  :Create directory. Will enter input mode.
+%                  :Create file. Will enter input mode.
+/                  :Fuzzy search directory. Will enter input mode.
+
+Input mode:
+<Esc>              :Cancel input.
+<Enter>            :Confirm input.
 ```
-
-## Roadmap
-- Keybindings for Common Actions:
-  - Delete files
-  - Duplicate files
-  - Copy files
-  - Adjust settings
-- Customizable keybinds
-- Syntax highlighting
 
 ## Contributing
 Contributions, issues, and feature requests are always welcome! This project is

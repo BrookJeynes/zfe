@@ -31,6 +31,7 @@ pub fn build(b: *std.Build) !void {
 
     const libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
     const fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
+    const zuid = b.dependency("zuid", .{ .target = target }).module("zuid");
 
     const exe = b.addExecutable(.{
         .name = "zfe",
@@ -40,6 +41,7 @@ pub fn build(b: *std.Build) !void {
     });
     exe.root_module.addImport("vaxis", libvaxis);
     exe.root_module.addImport("fuzzig", fuzzig);
+    exe.root_module.addImport("zuid", zuid);
     exe.root_module.addImport("options", exe_options_module);
     b.installArtifact(exe);
 
@@ -59,6 +61,7 @@ pub fn build(b: *std.Build) !void {
     //
     //     const build_libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
     //     const build_fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
+    //     const build_zuid = b.dependency("zuid", .{ .target = target }).module("zuid");
     //
     //     const build_exe = b.addExecutable(.{
     //         .name = "zfe",
@@ -68,6 +71,7 @@ pub fn build(b: *std.Build) !void {
     //     });
     //     build_exe.root_module.addImport("fuzzig", build_fuzzig);
     //     build_exe.root_module.addImport("vaxis", build_libvaxis);
+    //     build_exe.root_module.addImport("zuid", build_zuid);
     //     build_exe.root_module.addImport("options", exe_options_module);
     //     b.installArtifact(exe);
     //

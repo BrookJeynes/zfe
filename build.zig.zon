@@ -6,12 +6,16 @@
 
     .dependencies = .{
         .vaxis = .{
-            .url = "git+https://github.com/rockorager/libvaxis#0fa082033eb559fbc67c8b4eca355d262414c000",
-            .hash = "1220b99ce36908aa8ac1c2027d3938ef776e5686fb33a2975e80a8ba6e0086387216",
+            .url = "git+https://github.com/rockorager/libvaxis#93ac8e00f880e50007d6cf049df28e44b7de889c",
+            .hash = "1220033e2f7770acacae66f5ba02d689f025f325b0352316e48142f0a61d352b98aa",
         },
         .fuzzig = .{
             .url = "git+https://github.com/fjebaker/fuzzig#c6a0e0ca1a24e55ebdce51c83b918d4325ca7032",
             .hash = "1220214dfb9a0806d9c8a059beb9e3b07811fd138cd5baeb9d1da432588920a084bf",
+        },
+        .zuid = .{
+            .url = "git+https://github.com/KeithBrown39423/zuid#49e5980ba83f7d9ae967fa7ce4d54384c1c0f82b",
+            .hash = "1220e05a3f459c0adbf2b09b4764838833e3e716a712852aec6ef1636f4d8e9f646e",
         },
     },
 
