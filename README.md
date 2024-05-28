@@ -87,8 +87,9 @@ l / <Right>        :Open item or change directory.
 gg                 :Go to the top.
 G                  :Go to the bottom.
 
+R                  :Rename item. Will enter input mode.
 D                  :Delete item.
-u                  :Undo delete.
+u                  :Undo delete/rename.
 
 d                  :Create directory. Will enter input mode.
 %                  :Create file. Will enter input mode.

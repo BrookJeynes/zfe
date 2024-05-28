@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const log = &@import("./log.zig").log;
 const environment = @import("./environment.zig");
+const InfoBar = @import("./info_bar.zig");
 const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const View = @import("./view.zig");
@@ -19,61 +20,7 @@ const State = enum {
     fuzzy,
     new_dir,
     new_file,
-};
-
-const InfoBar = struct {
-    const InfoStyle = enum {
-        err,
-        info,
-    };
-
-    const Error = enum {
-        PermissionDenied,
-        UnknownError,
-        UnableToUndo,
-        UnableToOpenFile,
-        UnableToDeleteItem,
-        EditorNotSet,
-        ItemAlreadyExists,
-    };
-
-    len: usize = 0,
-    buf: [1024]u8 = undefined,
-    style: InfoStyle = InfoStyle.info,
-    fbs: std.io.FixedBufferStream([]u8) = undefined,
-
-    pub fn init(self: *InfoBar) void {
-        self.fbs = std.io.fixedBufferStream(&self.buf);
-    }
-
-    pub fn write(self: *InfoBar, text: []const u8, style: InfoStyle) !void {
-        self.fbs.reset();
-        self.len = try self.fbs.write(text);
-
-        self.style = style;
-    }
-
-    pub fn write_err(self: *InfoBar, err: Error) !void {
-        try switch (err) {
-            .PermissionDenied => self.write("Permission denied.", .err),
-            .UnknownError => self.write("An unknown error occurred.", .err),
-            .UnableToOpenFile => self.write("Unable to open file.", .err),
-            .UnableToDeleteItem => self.write("Unable to delete item.", .err),
-            .UnableToUndo => self.write("Unable to undo previous action.", .err),
-            .ItemAlreadyExists => self.write("Item already exists.", .err),
-            .EditorNotSet => self.write("$EDITOR is not set.", .err),
-        };
-    }
-
-    pub fn reset(self: *InfoBar) void {
-        self.fbs.reset();
-        self.len = 0;
-        self.style = InfoStyle.info;
-    }
-
-    pub fn slice(self: *InfoBar) []const u8 {
-        return self.buf[0..self.len];
-    }
+    rename,
 };
 
 const Action = union(enum) {
@@ -82,6 +29,12 @@ const Action = union(enum) {
         old_path: []const u8,
         /// Allocated.
         tmp_path: []const u8,
+    },
+    rename: struct {
+        /// Allocated.
+        old_path: []const u8,
+        /// Allocated.
+        new_path: []const u8,
     },
 };
 
@@ -293,7 +246,9 @@ pub fn main() !void {
 
                                 try info.write("Deleting item...", .info);
                                 if (view.dir.rename(entry.name, tmp_path)) {
+                                    try actions.append(.{ .delete = .{ .old_path = old_path, .tmp_path = tmp_path } });
                                     try info.write("Deleted item.", .info);
+
                                     view.cleanup();
                                     const fuzzy = text_input.sliceToCursor(&input_buf);
                                     view.populate_entries(fuzzy) catch |err| {
@@ -302,8 +257,6 @@ pub fn main() !void {
                                             else => try info.write_err(.UnknownError),
                                         }
                                     };
-
-                                    try actions.append(.{ .delete = .{ .old_path = old_path, .tmp_path = tmp_path } });
                                 } else |_| {
                                     try info.write_err(.UnableToDeleteItem);
                                 }
@@ -341,6 +294,25 @@ pub fn main() !void {
                                                 try info.write_err(.UnableToUndo);
                                             }
                                         },
+                                        .rename => |a| {
+                                            // TODO: Will overwrite an item if it has the same name.
+                                            if (view.dir.rename(a.new_path, a.old_path)) {
+                                                defer alloc.free(a.new_path);
+                                                defer alloc.free(a.old_path);
+
+                                                view.cleanup();
+                                                const fuzzy = text_input.sliceToCursor(&input_buf);
+                                                view.populate_entries(fuzzy) catch |err| {
+                                                    switch (err) {
+                                                        error.AccessDenied => try info.write_err(.PermissionDenied),
+                                                        else => try info.write_err(.UnknownError),
+                                                    }
+                                                };
+                                                try info.write("Restored previous item name.", .info);
+                                            } else |_| {
+                                                try info.write_err(.UnableToUndo);
+                                            }
+                                        },
                                     }
                                 } else {
                                     try info.write("Nothing to undo.", .info);
@@ -351,6 +323,17 @@ pub fn main() !void {
                                 state = State.fuzzy;
                                 last_pressed = null;
                             },
+                            'R' => {
+                                state = State.rename;
+
+                                const entry = view.entries.get(view.entries.selected) catch continue;
+                                text_input.insertSliceAtCursor(entry.name) catch {
+                                    state = State.normal;
+                                    try info.write_err(.UnableToRename);
+                                };
+
+                                last_pressed = null;
+                            },
                             else => {
                                 // log.debug("codepoint: {d}\n", .{key.codepoint});
                             },
@@ -359,7 +342,7 @@ pub fn main() !void {
                     else => {},
                 }
             },
-            .fuzzy, .new_file, .new_dir => {
+            .fuzzy, .new_file, .new_dir, .rename => {
                 switch (event) {
                     .key_press => |key| {
                         if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
@@ -374,6 +357,7 @@ pub fn main() !void {
                                 switch (state) {
                                     .new_dir => {},
                                     .new_file => {},
+                                    .rename => {},
                                     .fuzzy => {
                                         view.cleanup();
                                         view.populate_entries("") catch |err| {
@@ -430,6 +414,35 @@ pub fn main() !void {
                                         }
                                         text_input.clearAndFree();
                                     },
+                                    .rename => {
+                                        const original = view.entries.get(view.entries.selected) catch continue;
+                                        text_input.cursor_idx = text_input.grapheme_count;
+                                        const new = text_input.sliceToCursor(&input_buf);
+
+                                        if (environment.file_exists(view.dir, new)) {
+                                            try info.write_err(.ItemAlreadyExists);
+                                        } else {
+                                            view.dir.rename(original.name, new) catch |err| switch (err) {
+                                                error.AccessDenied => try info.write_err(.PermissionDenied),
+                                                error.PathAlreadyExists => try info.write_err(.ItemAlreadyExists),
+                                                else => try info.write_err(.UnknownError),
+                                            };
+
+                                            try actions.append(.{ .rename = .{
+                                                .old_path = try alloc.dupe(u8, original.name),
+                                                .new_path = try alloc.dupe(u8, new),
+                                            } });
+
+                                            view.cleanup();
+                                            view.populate_entries("") catch |err| {
+                                                switch (err) {
+                                                    error.AccessDenied => try info.write_err(.PermissionDenied),
+                                                    else => try info.write_err(.UnknownError),
+                                                }
+                                            };
+                                        }
+                                        text_input.clearAndFree();
+                                    },
                                     .fuzzy => {},
                                     else => {},
                                 }
@@ -441,6 +454,7 @@ pub fn main() !void {
                                 switch (state) {
                                     .new_dir => {},
                                     .new_file => {},
+                                    .rename => {},
                                     .fuzzy => {
                                         view.cleanup();
                                         const fuzzy = text_input.sliceToCursor(&input_buf);
@@ -649,7 +663,7 @@ pub fn main() !void {
 
         // Display search box.
         switch (state) {
-            .fuzzy, .new_file, .new_dir => {
+            .fuzzy, .new_file, .new_dir, .rename => {
                 info.reset();
                 text_input.draw(info_bar);
             },
@@ -671,8 +685,11 @@ pub fn main() !void {
     for (actions.items) |action| {
         switch (action) {
             .delete => |a| {
-                log.err("{s} - {s}", .{ a.tmp_path, a.old_path });
                 alloc.free(a.tmp_path);
+                alloc.free(a.old_path);
+            },
+            .rename => |a| {
+                alloc.free(a.new_path);
                 alloc.free(a.old_path);
             },
         }
