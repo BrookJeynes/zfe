@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const InfoBar = @This();
+const Self = @This();
 
-const InfoStyle = enum {
+const Style = enum {
     err,
     info,
 };
@@ -20,21 +20,21 @@ const Error = enum {
 
 len: usize = 0,
 buf: [1024]u8 = undefined,
-style: InfoStyle = InfoStyle.info,
+style: Style = Style.info,
 fbs: std.io.FixedBufferStream([]u8) = undefined,
 
-pub fn init(self: *InfoBar) void {
+pub fn init(self: *Self) void {
     self.fbs = std.io.fixedBufferStream(&self.buf);
 }
 
-pub fn write(self: *InfoBar, text: []const u8, style: InfoStyle) !void {
+pub fn write(self: *Self, text: []const u8, style: Style) !void {
     self.fbs.reset();
     self.len = try self.fbs.write(text);
 
     self.style = style;
 }
 
-pub fn write_err(self: *InfoBar, err: Error) !void {
+pub fn write_err(self: *Self, err: Error) !void {
     try switch (err) {
         .PermissionDenied => self.write("Permission denied.", .err),
         .UnknownError => self.write("An unknown error occurred.", .err),
@@ -47,12 +47,12 @@ pub fn write_err(self: *InfoBar, err: Error) !void {
     };
 }
 
-pub fn reset(self: *InfoBar) void {
+pub fn reset(self: *Self) void {
     self.fbs.reset();
     self.len = 0;
-    self.style = InfoStyle.info;
+    self.style = Style.info;
 }
 
-pub fn slice(self: *InfoBar) []const u8 {
+pub fn slice(self: *Self) []const u8 {
     return self.buf[0..self.len];
 }

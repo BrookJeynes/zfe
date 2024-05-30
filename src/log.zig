@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Logger = struct {
+pub const Logger = struct {
     const Self = @This();
     const BufferedFileWriter = std.io.BufferedWriter(4096, std.fs.File.Writer);
 

@@ -2,7 +2,6 @@ const std = @import("std");
 const List = @import("./list.zig").List;
 const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
-
 const fuzzig = @import("fuzzig");
 
 const Self = @This();
@@ -19,7 +18,6 @@ pub fn init(alloc: std.mem.Allocator) !Self {
     return Self{
         .alloc = alloc,
         .dir = try std.fs.cwd().openDir(".", .{ .iterate = true }),
-        .file_contents = undefined,
         .entries = List(std.fs.Dir.Entry).init(alloc),
         .sub_entries = List([]const u8).init(alloc),
         .searcher = try fuzzig.Ascii.init(
@@ -40,6 +38,10 @@ pub fn deinit(self: *Self) void {
 
     self.dir.close();
     self.searcher.deinit();
+}
+
+pub fn get_selected(self: *Self) !std.fs.Dir.Entry {
+    return self.entries.get_selected();
 }
 
 pub fn full_path(self: *Self, relative_path: []const u8) ![]const u8 {

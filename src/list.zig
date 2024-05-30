@@ -41,6 +41,14 @@ pub fn List(comptime T: type) type {
             return self.items.items[index];
         }
 
+        pub fn get_selected(self: *Self) !T {
+            if (self.items.items.len > 0) {
+                return self.items.items[self.selected];
+            }
+
+            return error.EmptyList;
+        }
+
         pub fn all(self: *Self) []T {
             return self.items.items;
         }
