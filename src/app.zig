@@ -245,7 +245,10 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     self.directories.entries.select_first();
                 },
                 'D' => {
-                    const entry = try self.directories.get_selected();
+                    const entry = self.directories.get_selected() catch {
+                        try self.notification.write_err(.UnableToDeleteItem);
+                        return .default;
+                    };
 
                     var old_path_buf: [std.fs.max_path_bytes]u8 = undefined;
                     const old_path = try self.alloc.dupe(u8, try self.directories.dir.realpath(entry.name, &old_path_buf));
@@ -257,14 +260,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                         try self.actions.append(.{ .delete = .{ .old_path = old_path, .tmp_path = tmp_path } });
                         try self.notification.write("Deleted item.", .info);
 
-                        self.directories.cleanup();
-                        const fuzzy = self.inputToSlice();
-                        self.directories.populate_entries(fuzzy) catch |err| {
-                            switch (err) {
-                                error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                else => try self.notification.write_err(.UnknownError),
-                            }
-                        };
+                        self.directories.remove_selected();
                     } else |_| {
                         try self.notification.write_err(.UnableToDeleteItem);
                     }
@@ -277,6 +273,8 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                 },
                 'u' => {
                     if (self.actions.items.len > 0) {
+                        const selected = self.directories.entries.selected;
+
                         const action = self.actions.pop();
                         switch (action) {
                             .delete => |a| {
@@ -318,6 +316,8 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                 }
                             },
                         }
+
+                        self.directories.entries.selected = selected;
                     } else {
                         try self.notification.write("Nothing to undo.", .info);
                     }
@@ -376,6 +376,9 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                     self.state = State.normal;
                 },
                 Key.enter => {
+                    // TODO: Do these actions really have to re-populate or can we
+                    // just append.
+                    const selected = self.directories.entries.selected;
                     switch (self.state) {
                         .new_dir => {
                             const dir = self.inputToSlice();
@@ -453,6 +456,7 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                         else => {},
                     }
                     self.state = State.normal;
+                    self.directories.entries.selected = selected;
                 },
                 else => {
                     try self.text_input.update(.{ .key_press = key });

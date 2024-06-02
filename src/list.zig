@@ -43,6 +43,10 @@ pub fn List(comptime T: type) type {
 
         pub fn get_selected(self: *Self) !T {
             if (self.items.items.len > 0) {
+                if (self.selected >= self.items.items.len) {
+                    self.selected = self.items.items.len - 1;
+                }
+
                 return self.items.items[self.selected];
             }
 

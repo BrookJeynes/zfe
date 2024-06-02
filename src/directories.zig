@@ -44,6 +44,13 @@ pub fn get_selected(self: *Self) !std.fs.Dir.Entry {
     return self.entries.get_selected();
 }
 
+/// Asserts there is a selected item.
+pub fn remove_selected(self: *Self) void {
+    const entry = self.get_selected() catch return;
+    self.alloc.free(entry.name);
+    _ = self.entries.items.orderedRemove(self.entries.selected);
+}
+
 pub fn full_path(self: *Self, relative_path: []const u8) ![]const u8 {
     return try self.dir.realpath(relative_path, &self.path_buf);
 }
