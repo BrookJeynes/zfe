@@ -4,6 +4,11 @@ const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
 const fuzzig = @import("fuzzig");
 
+const History = struct {
+    selected: usize,
+    offset: usize,
+};
+
 const Self = @This();
 
 alloc: std.mem.Allocator,
@@ -11,6 +16,7 @@ dir: std.fs.Dir,
 path_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_contents: [4096]u8 = undefined,
 entries: List(std.fs.Dir.Entry),
+history: std.ArrayList(History),
 sub_entries: List([]const u8),
 searcher: fuzzig.Ascii,
 
@@ -19,6 +25,7 @@ pub fn init(alloc: std.mem.Allocator) !Self {
         .alloc = alloc,
         .dir = try std.fs.cwd().openDir(".", .{ .iterate = true }),
         .entries = List(std.fs.Dir.Entry).init(alloc),
+        .history = std.ArrayList(History).init(alloc),
         .sub_entries = List([]const u8).init(alloc),
         .searcher = try fuzzig.Ascii.init(
             alloc,
@@ -35,6 +42,8 @@ pub fn deinit(self: *Self) void {
 
     self.entries.deinit();
     self.sub_entries.deinit();
+
+    self.history.deinit();
 
     self.dir.close();
     self.searcher.deinit();

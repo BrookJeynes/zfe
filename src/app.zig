@@ -185,6 +185,11 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                 else => try self.notification.write_err(.UnknownError),
                             }
                         };
+
+                        if (self.directories.history.popOrNull()) |history| {
+                            self.directories.entries.selected = history.selected;
+                            self.directories.entries.offset = history.offset;
+                        }
                     } else |err| {
                         switch (err) {
                             error.AccessDenied => try self.notification.write_err(.PermissionDenied),
@@ -201,6 +206,11 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
 
                             if (self.directories.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
                                 self.directories.dir = dir;
+
+                                try self.directories.history.append(.{
+                                    .selected = self.directories.entries.selected,
+                                    .offset = self.directories.entries.offset,
+                                });
 
                                 self.directories.cleanup();
                                 const fuzzy = self.inputToSlice();
@@ -468,6 +478,7 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                                         else => try self.notification.write_err(.UnknownError),
                                     }
                                 };
+                                self.directories.history.clearAndFree();
                             } else |err| {
                                 switch (err) {
                                     error.AccessDenied => try self.notification.write_err(.PermissionDenied),
