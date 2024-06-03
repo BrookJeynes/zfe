@@ -15,6 +15,7 @@ alloc: std.mem.Allocator,
 dir: std.fs.Dir,
 path_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_contents: [4096]u8 = undefined,
+pdf_contents: []u8 = undefined,
 entries: List(std.fs.Dir.Entry),
 history: std.ArrayList(History),
 sub_entries: List([]const u8),
@@ -44,6 +45,7 @@ pub fn deinit(self: *Self) void {
     self.sub_entries.deinit();
 
     self.history.deinit();
+    self.alloc.free(self.pdf_contents);
 
     self.dir.close();
     self.searcher.deinit();

@@ -636,6 +636,41 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                     }
                 }
 
+                // Handle pdf.
+                if (std.mem.eql(u8, std.fs.path.extension(entry.name), ".pdf")) {
+                    var child = std.process.Child.init(&.{ "pdftotext", self.current_item_path, "-" }, self.alloc);
+                    child.stdout_behavior = .Pipe;
+                    child.stderr_behavior = .Pipe;
+                    try child.spawn();
+
+                    var stdout = std.ArrayList(u8).init(self.alloc);
+                    defer stdout.deinit();
+                    var stderr = std.ArrayList(u8).init(self.alloc);
+                    defer stderr.deinit();
+                    try child.collectOutput(&stdout, &stderr, 4096);
+
+                    const term = try child.wait();
+                    if (term.Exited != 0) {
+                        _ = try preview_win.print(&.{
+                            .{
+                                .text = "No preview available. Install pdftotext to get PDF previews.",
+                            },
+                        }, .{});
+                        break :file;
+                    }
+
+                    if (self.directories.pdf_contents.len > 0) {
+                        self.directories.alloc.free(self.directories.pdf_contents);
+                    }
+                    self.directories.pdf_contents = try stdout.toOwnedSlice();
+                    _ = try preview_win.print(&.{
+                        .{
+                            .text = self.directories.pdf_contents,
+                        },
+                    }, .{});
+                    break :file;
+                }
+
                 // Handle utf-8.
                 if (std.unicode.utf8ValidateSlice(self.directories.file_contents[0..bytes])) {
                     _ = try preview_win.print(&.{

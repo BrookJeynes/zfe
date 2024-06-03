@@ -1,7 +1,8 @@
 .{
     .name = "zfe",
-    .version = "0.3.0",
-
+    // Must match the `zfe_version` in `build.zig`
+    .zfe_version = "0.3.0",
+    // Must match the `minimum_zig_version` in `build.zig`
     .minimum_zig_version = "0.12.0",
 
     .dependencies = .{
