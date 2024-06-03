@@ -37,6 +37,6 @@ pub fn main() !void {
 }
 
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    app.vx.deinit(app.alloc);
+    app.vx.deinit(app.alloc, app.tty.anyWriter());
     std.builtin.default_panic(msg, trace, ret_addr);
 }

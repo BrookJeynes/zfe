@@ -56,6 +56,7 @@ const App = @This();
 
 alloc: std.mem.Allocator,
 vx: vaxis.Vaxis = undefined,
+tty: vaxis.Tty = undefined,
 logger: Logger,
 state: State = State.normal,
 actions: std.ArrayList(Action),
@@ -89,6 +90,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
     return App{
         .alloc = alloc,
         .vx = vx,
+        .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
         .logger = Logger{},
         .text_input = TextInput.init(alloc, &vx.unicode),
@@ -115,7 +117,8 @@ pub fn deinit(self: *App) void {
     self.directories.deinit();
     self.text_input.deinit();
     self.actions.deinit();
-    self.vx.deinit(self.alloc);
+    self.vx.deinit(self.alloc, self.tty.anyWriter());
+    self.tty.deinit();
 }
 
 pub fn run(self: *App) !void {
@@ -124,12 +127,12 @@ pub fn run(self: *App) !void {
 
     try self.directories.populate_entries("");
 
-    var loop: vaxis.Loop(Event) = .{ .vaxis = &self.vx };
-    try loop.run();
+    var loop: vaxis.Loop(Event) = .{ .vaxis = &self.vx, .tty = &self.tty };
+    try loop.start();
     defer loop.stop();
 
-    try self.vx.enterAltScreen();
-    try self.vx.queryTerminal();
+    try self.vx.enterAltScreen(self.tty.anyWriter());
+    try self.vx.queryTerminal(self.tty.anyWriter(), 1 * std.time.ns_per_s);
 
     while (true) {
         self.notification.reset();
@@ -215,15 +218,15 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                         },
                         .file => {
                             if (environment.get_editor()) |editor| {
-                                try self.vx.exitAltScreen();
+                                try self.vx.exitAltScreen(self.tty.anyWriter());
                                 loop.stop();
 
                                 environment.open_file(self.alloc, self.directories.dir, entry.name, editor) catch {
                                     try self.notification.write_err(.UnableToOpenFile);
                                 };
 
-                                try loop.run();
-                                try self.vx.enterAltScreen();
+                                try loop.start();
+                                try self.vx.enterAltScreen(self.tty.anyWriter());
                                 self.vx.queueRefresh();
                             } else {
                                 try self.notification.write_err(.EditorNotSet);
@@ -340,7 +343,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
             }
         },
         .winsize => |ws| {
-            try self.vx.resize(self.alloc, ws);
+            try self.vx.resize(self.alloc, self.tty.anyWriter(), ws);
         },
     }
 
@@ -481,7 +484,7 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
             }
         },
         .winsize => |ws| {
-            try self.vx.resize(self.alloc, ws);
+            try self.vx.resize(self.alloc, self.tty.anyWriter(), ws);
         },
     }
 
@@ -505,7 +508,7 @@ pub fn draw(self: *App) !void {
 
     try self.draw_info(win);
 
-    try self.vx.render();
+    try self.vx.render(self.tty.anyWriter());
 }
 
 fn draw_file_name(self: *App, win: vaxis.Window, buf: []u8) !vaxis.Window {
@@ -580,7 +583,7 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                     for (supported) |ext| {
                         if (std.mem.eql(u8, std.fs.path.extension(entry.name), ext)) {
                             if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
-                                if (self.vx.loadImage(self.alloc, .{ .path = self.current_item_path })) |img| {
+                                if (self.vx.loadImage(self.alloc, self.tty.anyWriter(), .{ .path = self.current_item_path })) |img| {
                                     self.image = img;
                                 } else |_| {
                                     self.image = null;
@@ -596,7 +599,7 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                         } else {
                             // Free any image we might have already.
                             if (self.image) |img| {
-                                self.vx.freeImage(img.id);
+                                self.vx.freeImage(self.tty.anyWriter(), img.id);
                             }
                         }
                     }
