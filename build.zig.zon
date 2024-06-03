@@ -1,14 +1,14 @@
 .{
     .name = "zfe",
-    // Must match the `zfe_version` in `build.zig`
-    .zfe_version = "0.3.0",
+    // Must match the `version` in `build.zig`
+    .version = "0.3.0",
     // Must match the `minimum_zig_version` in `build.zig`
     .minimum_zig_version = "0.12.0",
 
     .dependencies = .{
         .vaxis = .{
-            .url = "git+https://github.com/rockorager/libvaxis#3ea76daf28944cbdc8e0a332f72519f0a5263644",
-            .hash = "12201c6a8854e5056eeb85e3e217d9075539e728e034d4ded5bf23610cf919eb147a",
+            .url = "git+https://github.com/rockorager/libvaxis#ef028bfe72f5a26a3d9eb225bb7cf307d467f01c",
+            .hash = "12203bec1ec84db62b9c4436620d5572ff10d53c89775c43de2d626b48ecbd263fe4",
         },
         .fuzzig = .{
             .url = "git+https://github.com/fjebaker/fuzzig#c6a0e0ca1a24e55ebdce51c83b918d4325ca7032",

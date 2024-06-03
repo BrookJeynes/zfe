@@ -61,7 +61,7 @@ pub fn List(comptime T: type) type {
             if (self.selected + 1 < self.items.items.len) {
                 self.selected += 1;
 
-                if (self.items.items[self.offset..].len != win_height and self.selected >= win_height / 2) {
+                if (self.items.items[self.offset..].len != win_height and self.selected >= self.offset + (win_height / 2)) {
                     self.offset += 1;
                 }
             }

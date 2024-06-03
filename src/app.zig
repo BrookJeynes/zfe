@@ -134,6 +134,7 @@ pub fn run(self: *App) !void {
 
     try self.vx.enterAltScreen(self.tty.anyWriter());
     try self.vx.queryTerminal(self.tty.anyWriter(), 1 * std.time.ns_per_s);
+    self.vx.queueRefresh();
 
     while (true) {
         self.notification.reset();
@@ -230,6 +231,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                         .file => {
                             if (environment.get_editor()) |editor| {
                                 try self.vx.exitAltScreen(self.tty.anyWriter());
+                                try self.vx.resetState(self.tty.anyWriter());
                                 loop.stop();
 
                                 environment.open_file(self.alloc, self.directories.dir, entry.name, editor) catch {
@@ -238,6 +240,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
 
                                 try loop.start();
                                 try self.vx.enterAltScreen(self.tty.anyWriter());
+                                try self.vx.enableDetectedFeatures(self.tty.anyWriter());
                                 self.vx.queueRefresh();
                             } else {
                                 try self.notification.write_err(.EditorNotSet);
