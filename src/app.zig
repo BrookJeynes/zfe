@@ -20,6 +20,7 @@ pub const State = enum {
     fuzzy,
     new_dir,
     new_file,
+    change_dir,
     rename,
 };
 
@@ -145,7 +146,7 @@ pub fn run(self: *App) !void {
                     .default => {},
                 }
             },
-            .fuzzy, .new_file, .new_dir, .rename => {
+            .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
                 switch (try self.handle_input_event(event)) {
                     .exit => return,
                     .default => {},
@@ -337,6 +338,9 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                         try self.notification.write_err(.UnableToRename);
                     };
                 },
+                'c' => {
+                    self.state = State.change_dir;
+                },
                 else => {
                     // log.debug("codepoint: {d}\n", .{key.codepoint});
                 },
@@ -360,9 +364,6 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
             switch (key.codepoint) {
                 Key.escape => {
                     switch (self.state) {
-                        .new_dir => {},
-                        .new_file => {},
-                        .rename => {},
                         .fuzzy => {
                             self.directories.cleanup();
                             self.directories.populate_entries("") catch |err| {
@@ -455,7 +456,29 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                             }
                             self.text_input.clearAndFree();
                         },
-                        .fuzzy => {},
+                        .change_dir => {
+                            const path = self.inputToSlice();
+                            if (self.directories.dir.openDir(path, .{ .iterate = true })) |dir| {
+                                self.directories.dir = dir;
+
+                                self.directories.cleanup();
+                                self.directories.populate_entries("") catch |err| {
+                                    switch (err) {
+                                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
+                                        else => try self.notification.write_err(.UnknownError),
+                                    }
+                                };
+                            } else |err| {
+                                switch (err) {
+                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
+                                    error.FileNotFound => try self.notification.write_err(.IncorrectPath),
+                                    error.NotDir => try self.notification.write_err(.IncorrectPath),
+                                    else => try self.notification.write_err(.UnknownError),
+                                }
+                            }
+
+                            self.text_input.clearAndFree();
+                        },
                         else => {},
                     }
                     self.state = State.normal;
@@ -465,9 +488,6 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                     try self.text_input.update(.{ .key_press = key });
 
                     switch (self.state) {
-                        .new_dir => {},
-                        .new_file => {},
-                        .rename => {},
                         .fuzzy => {
                             self.directories.cleanup();
                             const fuzzy = self.inputToSlice();
@@ -700,7 +720,7 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
 
     // Display user input box.
     switch (self.state) {
-        .fuzzy, .new_file, .new_dir, .rename => {
+        .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
             self.notification.reset();
             self.text_input.draw(info_win);
         },

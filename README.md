@@ -86,6 +86,7 @@ h / <Left> / -     :Go to the parent directory if exists.
 l / <Right>        :Open item or change directory.
 gg                 :Go to the top.
 G                  :Go to the bottom.
+c                  :Change directory via path. Will enter input mode.
 
 R                  :Rename item. Will enter input mode.
 D                  :Delete item.

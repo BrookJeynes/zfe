@@ -68,12 +68,10 @@ pub fn List(comptime T: type) type {
         }
 
         pub fn previous(self: *Self, win_height: usize) void {
-            _ = win_height;
-
             if (self.selected > 0) {
                 self.selected -= 1;
 
-                if (self.offset > 0) {
+                if (self.offset > 0 and self.selected < self.offset + (win_height / 2)) {
                     self.offset -= 1;
                 }
             }

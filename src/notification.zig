@@ -16,6 +16,7 @@ const Error = enum {
     EditorNotSet,
     ItemAlreadyExists,
     UnableToRename,
+    IncorrectPath,
 };
 
 len: usize = 0,
@@ -43,6 +44,7 @@ pub fn write_err(self: *Self, err: Error) !void {
         .UnableToUndo => self.write("Unable to undo previous action.", .err),
         .ItemAlreadyExists => self.write("Item already exists.", .err),
         .UnableToRename => self.write("Unable to rename item.", .err),
+        .IncorrectPath => self.write("Unable to find path.", .err),
         .EditorNotSet => self.write("$EDITOR is not set.", .err),
     };
 }
