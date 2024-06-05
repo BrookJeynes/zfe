@@ -3,7 +3,6 @@ const builtin = @import("builtin");
 
 const App = @import("app.zig");
 
-const log = &@import("./log.zig").log;
 const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
 
@@ -17,15 +16,15 @@ pub fn main() !void {
     config.parse(alloc) catch |err| switch (err) {
         error.ConfigNotFound => {},
         error.MissingConfigHomeEnvironmentVariable => {
-            log.err("Could not read config due to $HOME or $XDG_CONFIG_HOME not being set.", .{});
+            std.log.err("Could not read config due to $HOME or $XDG_CONFIG_HOME not being set.", .{});
             return;
         },
         error.SyntaxError => {
-            log.err("Could not read config due to a syntax error.", .{});
+            std.log.err("Could not read config due to a syntax error.", .{});
             return;
         },
         else => {
-            log.err("Could not read config due to an unknown error.", .{});
+            std.log.err("Could not read config due to an unknown error.", .{});
             return;
         },
     };

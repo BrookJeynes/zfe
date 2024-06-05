@@ -16,14 +16,21 @@ const Build = blk: {
 };
 
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
-
     const build_options = b.addOptions();
     build_options.step.name = "build options";
     const build_options_module = build_options.createModule();
     build_options.addOption([]const u8, "minimum_zig_string", minimum_zig_version);
     build_options.addOption(std.SemanticVersion, "zfe_version", version);
+
+    // Building targets for release.
+    const build_all = b.option(bool, "build-all-targets", "Build all targets in ReleaseSafe mode.") orelse false;
+    if (build_all) {
+        try build_targets(b, build_options_module);
+        return;
+    }
+
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
     const libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
     const fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
@@ -48,12 +55,6 @@ pub fn build(b: *std.Build) !void {
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
-
-    // Building targets for release.
-    const build_all = b.option(bool, "build-all-targets", "Build all targets in ReleaseSafe mode.") orelse false;
-    if (build_all) {
-        try build_targets(b, build_options_module);
-    }
 }
 
 fn build_targets(b: *std.Build, build_options_module: *std.Build.Module) !void {

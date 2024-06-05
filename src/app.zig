@@ -7,6 +7,7 @@ const Notification = @import("./notification.zig");
 const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const Directories = @import("./directories.zig");
+const CircStack = @import("./circ_stack.zig").CircularStack;
 
 const zuid = @import("zuid");
 
@@ -24,24 +25,21 @@ pub const State = enum {
     rename,
 };
 
-const Effect = enum {
+const InputReturnStatus = enum {
     exit,
     default,
 };
 
+const ActionPaths = struct {
+    /// Allocated.
+    old: []const u8,
+    /// Allocated.
+    new: []const u8,
+};
+
 pub const Action = union(enum) {
-    delete: struct {
-        /// Allocated.
-        old_path: []const u8,
-        /// Allocated.
-        tmp_path: []const u8,
-    },
-    rename: struct {
-        /// Allocated.
-        old_path: []const u8,
-        /// Allocated.
-        new_path: []const u8,
-    },
+    delete: ActionPaths,
+    rename: ActionPaths,
 };
 
 const Event = union(enum) {
@@ -52,6 +50,7 @@ const Event = union(enum) {
 const top_div = 1;
 const info_div = 1;
 const bottom_div = 1;
+const actions_len = 100;
 
 const App = @This();
 
@@ -59,8 +58,8 @@ alloc: std.mem.Allocator,
 vx: vaxis.Vaxis = undefined,
 tty: vaxis.Tty = undefined,
 logger: Logger,
-state: State = State.normal,
-actions: std.ArrayList(Action),
+state: State = .normal,
+actions: CircStack(Action, actions_len),
 
 // Used to detect whether to re-render an image.
 current_item_path_buf: [std.fs.max_path_bytes]u8 = undefined,
@@ -96,28 +95,23 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .logger = Logger{},
         .text_input = TextInput.init(alloc, &vx.unicode),
         .notification = Notification{},
-        .actions = std.ArrayList(Action).init(alloc),
+        .actions = CircStack(Action, actions_len).init(),
         .last_known_height = vx.window().height,
     };
 }
 
 pub fn deinit(self: *App) void {
-    for (self.actions.items) |action| {
+    for (self.actions.buf[0..self.actions.count]) |action| {
         switch (action) {
-            .delete => |a| {
-                self.alloc.free(a.tmp_path);
-                self.alloc.free(a.old_path);
-            },
-            .rename => |a| {
-                self.alloc.free(a.new_path);
-                self.alloc.free(a.old_path);
+            .delete, .rename => |a| {
+                self.alloc.free(a.new);
+                self.alloc.free(a.old);
             },
         }
     }
 
     self.directories.deinit();
     self.text_input.deinit();
-    self.actions.deinit();
     self.vx.deinit(self.alloc, self.tty.anyWriter());
     self.tty.deinit();
 }
@@ -164,7 +158,7 @@ pub fn inputToSlice(self: *App) []const u8 {
     return self.text_input.sliceToCursor(&self.text_input_buf);
 }
 
-pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !Effect {
+pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !InputReturnStatus {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
@@ -187,7 +181,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             }
                         };
 
-                        if (self.directories.history.popOrNull()) |history| {
+                        if (self.directories.history.pop()) |history| {
                             self.directories.entries.selected = history.selected;
                             self.directories.entries.offset = history.offset;
                         }
@@ -208,7 +202,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             if (self.directories.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
                                 self.directories.dir = dir;
 
-                                try self.directories.history.append(.{
+                                self.directories.history.push(.{
                                     .selected = self.directories.entries.selected,
                                     .offset = self.directories.entries.offset,
                                 });
@@ -274,7 +268,10 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
 
                     try self.notification.write("Deleting item...", .info);
                     if (self.directories.dir.rename(entry.name, tmp_path)) {
-                        try self.actions.append(.{ .delete = .{ .old_path = old_path, .tmp_path = tmp_path } });
+                        // TODO: Will leak memory if pushing to a full stack.
+                        self.actions.push(.{
+                            .delete = .{ .old = old_path, .new = tmp_path },
+                        });
                         try self.notification.write("Deleted item.", .info);
 
                         self.directories.remove_selected();
@@ -289,16 +286,15 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     self.state = .new_file;
                 },
                 'u' => {
-                    if (self.actions.items.len > 0) {
+                    if (self.actions.pop()) |action| {
                         const selected = self.directories.entries.selected;
 
-                        const action = self.actions.pop();
                         switch (action) {
                             .delete => |a| {
                                 // TODO: Will overwrite an item if it has the same name.
-                                if (self.directories.dir.rename(a.tmp_path, a.old_path)) {
-                                    defer self.alloc.free(a.tmp_path);
-                                    defer self.alloc.free(a.old_path);
+                                if (self.directories.dir.rename(a.new, a.old)) {
+                                    defer self.alloc.free(a.new);
+                                    defer self.alloc.free(a.old);
 
                                     self.directories.cleanup();
                                     const fuzzy = self.inputToSlice();
@@ -315,9 +311,9 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             },
                             .rename => |a| {
                                 // TODO: Will overwrite an item if it has the same name.
-                                if (self.directories.dir.rename(a.new_path, a.old_path)) {
-                                    defer self.alloc.free(a.new_path);
-                                    defer self.alloc.free(a.old_path);
+                                if (self.directories.dir.rename(a.new, a.old)) {
+                                    defer self.alloc.free(a.new);
+                                    defer self.alloc.free(a.old);
 
                                     self.directories.cleanup();
                                     const fuzzy = self.inputToSlice();
@@ -340,19 +336,19 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     }
                 },
                 '/' => {
-                    self.state = State.fuzzy;
+                    self.state = .fuzzy;
                 },
                 'R' => {
-                    self.state = State.rename;
+                    self.state = .rename;
 
                     const entry = try self.directories.get_selected();
                     self.text_input.insertSliceAtCursor(entry.name) catch {
-                        self.state = State.normal;
+                        self.state = .normal;
                         try self.notification.write_err(.UnableToRename);
                     };
                 },
                 'c' => {
-                    self.state = State.change_dir;
+                    self.state = .change_dir;
                 },
                 else => {
                     // log.debug("codepoint: {d}\n", .{key.codepoint});
@@ -367,7 +363,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
     return .default;
 }
 
-pub fn handle_input_event(self: *App, event: Event) !Effect {
+pub fn handle_input_event(self: *App, event: Event) !InputReturnStatus {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
@@ -390,11 +386,9 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                     }
 
                     self.text_input.clearAndFree();
-                    self.state = State.normal;
+                    self.state = .normal;
                 },
                 Key.enter => {
-                    // TODO: Do these actions really have to re-populate or can we
-                    // just append.
                     const selected = self.directories.entries.selected;
                     switch (self.state) {
                         .new_dir => {
@@ -454,10 +448,13 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                                     error.PathAlreadyExists => try self.notification.write_err(.ItemAlreadyExists),
                                     else => try self.notification.write_err(.UnknownError),
                                 };
-                                try self.actions.append(.{ .rename = .{
-                                    .old_path = try std.fs.path.join(self.alloc, &.{ dir_prefix, old.name }),
-                                    .new_path = try std.fs.path.join(self.alloc, &.{ dir_prefix, new }),
-                                } });
+                                // TODO: Will leak memory if pushing to a full stack.
+                                self.actions.push(.{
+                                    .rename = .{
+                                        .old = try std.fs.path.join(self.alloc, &.{ dir_prefix, old.name }),
+                                        .new = try std.fs.path.join(self.alloc, &.{ dir_prefix, new }),
+                                    },
+                                });
 
                                 self.directories.cleanup();
                                 self.directories.populate_entries("") catch |err| {
@@ -481,7 +478,7 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                                         else => try self.notification.write_err(.UnknownError),
                                     }
                                 };
-                                self.directories.history.clearAndFree();
+                                self.directories.history.reset();
                             } else |err| {
                                 switch (err) {
                                     error.AccessDenied => try self.notification.write_err(.PermissionDenied),
@@ -495,7 +492,7 @@ pub fn handle_input_event(self: *App, event: Event) !Effect {
                         },
                         else => {},
                     }
-                    self.state = State.normal;
+                    self.state = .normal;
                     self.directories.entries.selected = selected;
                 },
                 else => {
@@ -573,7 +570,7 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
     });
 
     // Populate preview bar
-    if (self.directories.entries.all().len > 0 and config.preview_file == true) {
+    if (self.directories.entries.len() > 0 and config.preview_file == true) {
         const entry = try self.directories.get_selected();
 
         @memcpy(&self.last_item_path_buf, &self.current_item_path_buf);
@@ -662,13 +659,13 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                         break :file;
                     }
 
-                    if (self.directories.pdf_contents.len > 0) {
-                        self.directories.alloc.free(self.directories.pdf_contents);
+                    if (self.directories.pdf_contents) |pdf_contents| {
+                        self.directories.alloc.free(pdf_contents);
                     }
                     self.directories.pdf_contents = try stdout.toOwnedSlice();
                     _ = try preview_win.print(&.{
                         .{
-                            .text = self.directories.pdf_contents,
+                            .text = self.directories.pdf_contents.?,
                         },
                     }, .{});
                     break :file;
@@ -701,7 +698,7 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
 fn draw_file_info(self: *App, win: vaxis.Window, file_info_buf: []u8) !vaxis.Window {
     const file_info = try std.fmt.bufPrint(file_info_buf, "{d}/{d} {s} {s}", .{
         self.directories.entries.selected + 1,
-        self.directories.entries.items.items.len,
+        self.directories.entries.len(),
         std.fs.path.extension(if (self.directories.get_selected()) |entry| entry.name else |_| ""),
         std.fmt.fmtIntSizeDec((try self.directories.dir.metadata()).size()),
     });
@@ -725,7 +722,7 @@ fn draw_current_dir_list(self: *App, win: vaxis.Window, abs_file_path: vaxis.Win
         .width = if (config.preview_file) .{ .limit = win.width / 2 } else .{ .limit = win.width },
         .height = .{ .limit = win.height - (abs_file_path.height + file_information.height + top_div + bottom_div) },
     });
-    try self.directories.write_entries(current_dir_list_win, config.styles.selected_list_item, config.styles.list_item, null);
+    try self.directories.write_entries(current_dir_list_win, config.styles.selected_list_item, config.styles.list_item);
 
     self.last_known_height = current_dir_list_win.height;
 }

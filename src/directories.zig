@@ -1,5 +1,6 @@
 const std = @import("std");
 const List = @import("./list.zig").List;
+const CircStack = @import("./circ_stack.zig").CircularStack;
 const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
 const fuzzig = @import("fuzzig");
@@ -9,15 +10,17 @@ const History = struct {
     offset: usize,
 };
 
+const history_len: usize = 100;
+
 const Self = @This();
 
 alloc: std.mem.Allocator,
 dir: std.fs.Dir,
 path_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_contents: [4096]u8 = undefined,
-pdf_contents: []u8 = undefined,
+pdf_contents: ?[]u8 = null,
 entries: List(std.fs.Dir.Entry),
-history: std.ArrayList(History),
+history: CircStack(History, history_len),
 sub_entries: List([]const u8),
 searcher: fuzzig.Ascii,
 
@@ -26,7 +29,7 @@ pub fn init(alloc: std.mem.Allocator) !Self {
         .alloc = alloc,
         .dir = try std.fs.cwd().openDir(".", .{ .iterate = true }),
         .entries = List(std.fs.Dir.Entry).init(alloc),
-        .history = std.ArrayList(History).init(alloc),
+        .history = CircStack(History, history_len).init(),
         .sub_entries = List([]const u8).init(alloc),
         .searcher = try fuzzig.Ascii.init(
             alloc,
@@ -44,8 +47,9 @@ pub fn deinit(self: *Self) void {
     self.entries.deinit();
     self.sub_entries.deinit();
 
-    self.history.deinit();
-    self.alloc.free(self.pdf_contents);
+    if (self.pdf_contents) |pdf_contents| {
+        self.alloc.free(pdf_contents);
+    }
 
     self.dir.close();
     self.searcher.deinit();
@@ -79,7 +83,7 @@ pub fn populate_sub_entries(
     }
 
     if (config.sort_dirs == true) {
-        std.mem.sort([]const u8, self.sub_entries.items.items, {}, sort_sub_entry);
+        std.mem.sort([]const u8, self.sub_entries.all(), {}, sort_sub_entry);
     }
 }
 
@@ -88,7 +92,7 @@ pub fn write_sub_entries(
     window: vaxis.Window,
     style: vaxis.Style,
 ) !void {
-    for (self.sub_entries.items.items, 0..) |item, i| {
+    for (self.sub_entries.all(), 0..) |item, i| {
         if (std.mem.startsWith(u8, item, ".") and config.show_hidden == false) {
             continue;
         }
@@ -129,7 +133,7 @@ pub fn populate_entries(self: *Self, fuzzy_search: []const u8) !void {
     }
 
     if (config.sort_dirs == true) {
-        std.mem.sort(std.fs.Dir.Entry, self.entries.items.items, {}, sort_entry);
+        std.mem.sort(std.fs.Dir.Entry, self.entries.all(), {}, sort_entry);
     }
 }
 
@@ -138,10 +142,10 @@ pub fn write_entries(
     window: vaxis.Window,
     selected_list_item_style: vaxis.Style,
     list_item_style: vaxis.Style,
-    callback: ?*const fn (item_win: vaxis.Window) void,
 ) !void {
-    for (self.entries.items.items[self.entries.offset..], 0..) |item, i| {
-        const is_selected = self.entries.selected - self.entries.offset == i;
+    for (self.entries.all()[self.entries.offset..], 0..) |item, i| {
+        const selected = self.entries.selected - self.entries.offset;
+        const is_selected = selected == i;
 
         if (std.mem.startsWith(u8, item.name, ".") and config.show_hidden == false) {
             continue;
@@ -158,10 +162,6 @@ pub fn write_entries(
         w.fill(vaxis.Cell{
             .style = if (is_selected) selected_list_item_style else list_item_style,
         });
-
-        if (callback) |cb| {
-            cb(w);
-        }
 
         _ = try w.print(&.{
             .{

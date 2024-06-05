@@ -34,20 +34,20 @@ pub fn List(comptime T: type) type {
         }
 
         pub fn get(self: *Self, index: usize) !T {
-            if (index + 1 > self.items.items.len) {
+            if (index + 1 > self.len()) {
                 return error.OutOfBounds;
             }
 
-            return self.items.items[index];
+            return self.all()[index];
         }
 
         pub fn get_selected(self: *Self) !T {
-            if (self.items.items.len > 0) {
-                if (self.selected >= self.items.items.len) {
-                    self.selected = self.items.items.len - 1;
+            if (self.len() > 0) {
+                if (self.selected >= self.len()) {
+                    self.selected = self.len() - 1;
                 }
 
-                return self.items.items[self.selected];
+                return try self.get(self.selected);
             }
 
             return error.EmptyList;
@@ -57,11 +57,15 @@ pub fn List(comptime T: type) type {
             return self.items.items;
         }
 
+        pub fn len(self: *Self) usize {
+            return self.items.items.len;
+        }
+
         pub fn next(self: *Self, win_height: usize) void {
-            if (self.selected + 1 < self.items.items.len) {
+            if (self.selected + 1 < self.len()) {
                 self.selected += 1;
 
-                if (self.items.items[self.offset..].len != win_height and self.selected >= self.offset + (win_height / 2)) {
+                if (self.all()[self.offset..].len != win_height and self.selected >= self.offset + (win_height / 2)) {
                     self.offset += 1;
                 }
             }
@@ -78,7 +82,7 @@ pub fn List(comptime T: type) type {
         }
 
         pub fn select_last(self: *Self, win_height: usize) void {
-            self.selected = self.items.items.len - 1;
+            self.selected = self.len() - 1;
             if (self.selected >= win_height) {
                 self.offset = self.selected - (win_height - 1);
             }
