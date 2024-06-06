@@ -58,7 +58,6 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn build_targets(b: *std.Build, build_options_module: *std.Build.Module) !void {
-    const target = b.standardTargetOptions(.{});
     const targets: []const std.Target.Query = &.{
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
         .{ .cpu_arch = .aarch64, .os_tag = .linux },
@@ -67,25 +66,24 @@ fn build_targets(b: *std.Build, build_options_module: *std.Build.Module) !void {
     };
 
     for (targets) |t| {
-        const build_target = b.resolveTargetQuery(t);
-
+        const target = b.resolveTargetQuery(t);
         const libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
         const fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
         const zuid = b.dependency("zuid", .{ .target = target }).module("zuid");
 
-        const build_exe = b.addExecutable(.{
+        const exe = b.addExecutable(.{
             .name = "zfe",
             .root_source_file = b.path("src/main.zig"),
-            .target = build_target,
+            .target = target,
             .optimize = .ReleaseSafe,
         });
-        build_exe.root_module.addImport("fuzzig", fuzzig);
-        build_exe.root_module.addImport("vaxis", libvaxis);
-        build_exe.root_module.addImport("zuid", zuid);
-        build_exe.root_module.addImport("options", build_options_module);
-        b.installArtifact(build_exe);
+        exe.root_module.addImport("fuzzig", fuzzig);
+        exe.root_module.addImport("vaxis", libvaxis);
+        exe.root_module.addImport("zuid", zuid);
+        exe.root_module.addImport("options", build_options_module);
+        b.installArtifact(exe);
 
-        const target_output = b.addInstallArtifact(build_exe, .{
+        const target_output = b.addInstallArtifact(exe, .{
             .dest_dir = .{
                 .override = .{
                     .custom = try t.zigTriple(b.allocator),
