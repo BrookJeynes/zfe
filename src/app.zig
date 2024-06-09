@@ -640,14 +640,14 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                 if (std.mem.eql(u8, std.fs.path.extension(entry.name), ".pdf")) {
                     var child = std.process.Child.init(&.{ "pdftotext", self.current_item_path, "-" }, self.alloc);
                     child.stdout_behavior = .Pipe;
-                    child.stderr_behavior = .Pipe;
+                    child.stderr_behavior = .Close;
+                    child.stdin_behavior = .Close;
                     try child.spawn();
 
-                    var stdout = std.ArrayList(u8).init(self.alloc);
-                    defer stdout.deinit();
-                    var stderr = std.ArrayList(u8).init(self.alloc);
-                    defer stderr.deinit();
-                    try child.collectOutput(&stdout, &stderr, 4096);
+                    const pdf_bytes = if (child.stdout) |stdout|
+                        try stdout.reader().read(&self.directories.pdf_contents)
+                    else
+                        0;
 
                     const term = try child.wait();
                     if (term.Exited != 0) {
@@ -659,13 +659,9 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                         break :file;
                     }
 
-                    if (self.directories.pdf_contents) |pdf_contents| {
-                        self.directories.alloc.free(pdf_contents);
-                    }
-                    self.directories.pdf_contents = try stdout.toOwnedSlice();
                     _ = try preview_win.print(&.{
                         .{
-                            .text = self.directories.pdf_contents.?,
+                            .text = self.directories.pdf_contents[0..pdf_bytes],
                         },
                     }, .{});
                     break :file;
