@@ -103,4 +103,4 @@ Input mode:
 
 ## Contributing
 Contributions, issues, and feature requests are always welcome! This project is
-currently using the latest stable release of Zig (0.12.0).
+currently using the latest stable release of Zig (0.13.0).
