@@ -13,6 +13,8 @@ const Error = enum {
     UnableToUndo,
     UnableToOpenFile,
     UnableToDeleteItem,
+    UnableToDeleteAcrossMountPoints,
+    UnsupportedImageFormat,
     EditorNotSet,
     ItemAlreadyExists,
     UnableToRename,
@@ -41,11 +43,13 @@ pub fn write_err(self: *Self, err: Error) !void {
         .UnknownError => self.write("An unknown error occurred.", .err),
         .UnableToOpenFile => self.write("Unable to open file.", .err),
         .UnableToDeleteItem => self.write("Unable to delete item.", .err),
+        .UnableToDeleteAcrossMountPoints => self.write("Unable to move item to /tmp. Failed to delete.", .err),
         .UnableToUndo => self.write("Unable to undo previous action.", .err),
         .ItemAlreadyExists => self.write("Item already exists.", .err),
         .UnableToRename => self.write("Unable to rename item.", .err),
         .IncorrectPath => self.write("Unable to find path.", .err),
         .EditorNotSet => self.write("$EDITOR is not set.", .err),
+        .UnsupportedImageFormat => self.write("Unsupported image format.", .err),
     };
 }
 

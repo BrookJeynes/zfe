@@ -17,10 +17,14 @@ pub fn CircularStack(comptime T: type, comptime capacity: usize) type {
             self.count = 0;
         }
 
-        pub fn push(self: *Self, v: T) void {
+        pub fn push(self: *Self, v: T) ?T {
+            const prev_elem = if (self.count == capacity) self.buf[self.head] else null;
+
             self.buf[self.head] = v;
             self.head = (self.head + 1) % capacity;
             if (self.count != capacity) self.count += 1;
+
+            return prev_elem;
         }
 
         pub fn pop(self: *Self) ?T {

@@ -154,7 +154,7 @@ pub fn run(self: *App) !void {
 }
 
 pub fn inputToSlice(self: *App) []const u8 {
-    self.text_input.cursor_idx = self.text_input.grapheme_count;
+    self.text_input.buf.cursor = self.text_input.buf.realLength();
     return self.text_input.sliceToCursor(&self.text_input_buf);
 }
 
@@ -202,7 +202,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             if (self.directories.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
                                 self.directories.dir = dir;
 
-                                self.directories.history.push(.{
+                                _ = self.directories.history.push(.{
                                     .selected = self.directories.entries.selected,
                                     .offset = self.directories.entries.offset,
                                 });
@@ -268,21 +268,44 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
 
                     try self.notification.write("Deleting item...", .info);
                     if (self.directories.dir.rename(entry.name, tmp_path)) {
-                        // TODO: Will leak memory if pushing to a full stack.
-                        self.actions.push(.{
+                        if (self.actions.push(.{
                             .delete = .{ .old = old_path, .new = tmp_path },
-                        });
+                        })) |prev_elem| {
+                            self.alloc.free(prev_elem.delete.old);
+                            self.alloc.free(prev_elem.delete.new);
+                        }
                         try self.notification.write("Deleted item.", .info);
 
                         self.directories.remove_selected();
-                    } else |_| {
-                        try self.notification.write_err(.UnableToDeleteItem);
+                    } else |err| {
+                        switch (err) {
+                            error.RenameAcrossMountPoints => try self.notification.write_err(.UnableToDeleteAcrossMountPoints),
+                            else => try self.notification.write_err(.UnableToDeleteItem),
+                        }
+                        self.alloc.free(old_path);
+                        self.alloc.free(tmp_path);
                     }
                 },
                 'd' => {
+                    self.text_input.clearAndFree();
+                    self.directories.cleanup();
+                    self.directories.populate_entries("") catch |err| {
+                        switch (err) {
+                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
+                            else => try self.notification.write_err(.UnknownError),
+                        }
+                    };
                     self.state = .new_dir;
                 },
                 '%' => {
+                    self.text_input.clearAndFree();
+                    self.directories.cleanup();
+                    self.directories.populate_entries("") catch |err| {
+                        switch (err) {
+                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
+                            else => try self.notification.write_err(.UnknownError),
+                        }
+                    };
                     self.state = .new_file;
                 },
                 'u' => {
@@ -366,7 +389,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
 pub fn handle_input_event(self: *App, event: Event) !InputReturnStatus {
     switch (event) {
         .key_press => |key| {
-            if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
+            if ((key.codepoint == 'c' and key.mods.ctrl)) {
                 return .exit;
             }
 
@@ -448,13 +471,15 @@ pub fn handle_input_event(self: *App, event: Event) !InputReturnStatus {
                                     error.PathAlreadyExists => try self.notification.write_err(.ItemAlreadyExists),
                                     else => try self.notification.write_err(.UnknownError),
                                 };
-                                // TODO: Will leak memory if pushing to a full stack.
-                                self.actions.push(.{
+                                if (self.actions.push(.{
                                     .rename = .{
                                         .old = try std.fs.path.join(self.alloc, &.{ dir_prefix, old.name }),
                                         .new = try std.fs.path.join(self.alloc, &.{ dir_prefix, new }),
                                     },
-                                });
+                                })) |prev_elem| {
+                                    self.alloc.free(prev_elem.rename.old);
+                                    self.alloc.free(prev_elem.rename.new);
+                                }
 
                                 self.directories.cleanup();
                                 self.directories.populate_entries("") catch |err| {
@@ -609,31 +634,27 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
 
                 // Handle image.
                 if (config.show_images == true) unsupported_terminal: {
-                    const supported: [1][]const u8 = .{".png"};
-
-                    for (supported) |ext| {
-                        if (std.mem.eql(u8, std.fs.path.extension(entry.name), ext)) {
-                            if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
-                                if (self.vx.loadImage(self.alloc, self.tty.anyWriter(), .{ .path = self.current_item_path })) |img| {
-                                    self.image = img;
-                                } else |_| {
-                                    self.image = null;
-                                    break :unsupported_terminal;
-                                }
-                            }
-
-                            if (self.image) |img| {
-                                try img.draw(preview_win, .{ .scale = .fit });
-                            }
-
-                            break :file;
-                        } else {
-                            // Free any image we might have already.
+                    if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
+                        var image = vaxis.zigimg.Image.fromFilePath(self.alloc, self.current_item_path) catch {
+                            break :unsupported_terminal;
+                        };
+                        defer image.deinit();
+                        if (self.vx.transmitImage(self.alloc, self.tty.anyWriter(), &image, .rgba)) |img| {
+                            self.image = img;
+                        } else |_| {
                             if (self.image) |img| {
                                 self.vx.freeImage(self.tty.anyWriter(), img.id);
                             }
+                            self.image = null;
+                            break :unsupported_terminal;
+                        }
+
+                        if (self.image) |img| {
+                            try img.draw(preview_win, .{ .scale = .contain });
                         }
                     }
+
+                    break :file;
                 }
 
                 // Handle pdf.
@@ -745,7 +766,7 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
 
     // Display info box.
     if (self.notification.len > 0) {
-        if (self.text_input.grapheme_count > 0) {
+        if (self.text_input.buf.realLength() > 0) {
             self.text_input.clearAndFree();
         }
 
@@ -767,7 +788,7 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
             self.text_input.draw(info_win);
         },
         .normal => {
-            if (self.text_input.grapheme_count > 0) {
+            if (self.text_input.buf.realLength() > 0) {
                 self.text_input.draw(info_win);
             }
 
