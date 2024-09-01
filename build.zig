@@ -4,16 +4,7 @@ const builtin = @import("builtin");
 /// Must match the `minimum_zig_version` in `build.zig.zon`.
 const minimum_zig_version = "0.13.0";
 /// Must match the `version` in `build.zig.zon`.
-const version = std.SemanticVersion{ .major = 0, .minor = 4, .patch = 0 };
-
-const Build = blk: {
-    const current_zig = builtin.zig_version;
-    const min_zig = std.SemanticVersion.parse(minimum_zig_version) catch unreachable;
-    if (current_zig.order(min_zig) == .lt) {
-        @compileError(std.fmt.comptimePrint("Your Zig version v{} does not meet the minimum build requirement of v{}", .{ current_zig, min_zig }));
-    }
-    break :blk std.Build;
-};
+const version = std.SemanticVersion{ .major = 0, .minor = 5, .patch = 0 };
 
 pub fn build(b: *std.Build) !void {
     const build_options = b.addOptions();
