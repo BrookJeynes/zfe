@@ -101,6 +101,9 @@ Input mode:
 <Enter>            :Confirm input.
 ```
 
+## Extras
+- Install `pdftotext` to view PDF previews.
+
 ## Contributing
 Contributions, issues, and feature requests are always welcome! This project is
 currently using the latest stable release of Zig (0.13.0).
