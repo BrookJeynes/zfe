@@ -18,7 +18,7 @@ alloc: std.mem.Allocator,
 dir: std.fs.Dir,
 path_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_contents: [4096]u8 = undefined,
-pdf_contents: [4096]u8 = undefined,
+pdf_contents: ?[]u8 = null,
 entries: List(std.fs.Dir.Entry),
 history: CircStack(History, history_len),
 sub_entries: List([]const u8),
@@ -49,6 +49,8 @@ pub fn deinit(self: *Self) void {
 
     self.dir.close();
     self.searcher.deinit();
+
+    if (self.pdf_contents) |contents| self.alloc.free(contents);
 }
 
 pub fn get_selected(self: *Self) !std.fs.Dir.Entry {

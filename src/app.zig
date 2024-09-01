@@ -659,19 +659,22 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
 
                 // Handle pdf.
                 if (std.mem.eql(u8, std.fs.path.extension(entry.name), ".pdf")) {
-                    var child = std.process.Child.init(&.{ "pdftotext", self.current_item_path, "-" }, self.alloc);
-                    child.stdout_behavior = .Pipe;
-                    child.stderr_behavior = .Close;
-                    child.stdin_behavior = .Close;
-                    try child.spawn();
+                    const output = std.process.Child.run(.{
+                        .allocator = self.alloc,
+                        .argv = &[_][]const u8{ "pdftotext", "-f", "0", "-l", "5", self.current_item_path, "-" },
+                        .cwd_dir = self.directories.dir,
+                    }) catch {
+                        _ = try preview_win.print(&.{
+                            .{
+                                .text = "No preview available. Install pdftotext to get PDF previews.",
+                            },
+                        }, .{});
+                        break :file;
+                    };
+                    defer self.alloc.free(output.stderr);
+                    defer self.alloc.free(output.stdout);
 
-                    const pdf_bytes = if (child.stdout) |stdout|
-                        try stdout.reader().read(&self.directories.pdf_contents)
-                    else
-                        0;
-
-                    const term = try child.wait();
-                    if (term.Exited != 0) {
+                    if (output.term.Exited != 0) {
                         _ = try preview_win.print(&.{
                             .{
                                 .text = "No preview available. Install pdftotext to get PDF previews.",
@@ -680,9 +683,12 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                         break :file;
                     }
 
+                    if (self.directories.pdf_contents) |contents| self.alloc.free(contents);
+                    self.directories.pdf_contents = try self.alloc.dupe(u8, output.stdout);
+
                     _ = try preview_win.print(&.{
                         .{
-                            .text = self.directories.pdf_contents[0..pdf_bytes],
+                            .text = self.directories.pdf_contents.?,
                         },
                     }, .{});
                     break :file;
