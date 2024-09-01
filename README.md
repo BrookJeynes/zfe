@@ -101,8 +101,8 @@ Input mode:
 <Enter>            :Confirm input.
 ```
 
-## Extras
-- Install `pdftotext` to view PDF previews.
+## Optional Dependencies
+- `pdftotext` to view PDF previews.
 
 ## Contributing
 Contributions, issues, and feature requests are always welcome! This project is
