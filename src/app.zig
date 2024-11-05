@@ -8,6 +8,7 @@ const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const Directories = @import("./directories.zig");
 const CircStack = @import("./circ_stack.zig").CircularStack;
+const Pdf = @import("./pdf.zig");
 
 const zuid = @import("zuid");
 
@@ -633,6 +634,8 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                 const bytes = try file.readAll(&self.directories.file_contents);
 
                 // Handle image.
+                // TODO: Check if the current item is an image instead of just
+                // breaking if it's not.
                 if (config.show_images == true) unsupported_terminal: {
                     if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
                         var image = vaxis.zigimg.Image.fromFilePath(self.alloc, self.current_item_path) catch {
@@ -659,14 +662,31 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
 
                 // Handle pdf.
                 if (std.mem.eql(u8, std.fs.path.extension(entry.name), ".pdf")) {
+                    if (config.show_images == true) pdf_preview: {
+                        if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
+                            var pdf = Pdf.open(self.alloc, self.current_item_path) catch {
+                                try self.notification.write_err(.UnableToOpenPdf);
+                                break :pdf_preview;
+                            };
+                            defer pdf.deinit();
+                            pdf.draw(&self.vx, &self.tty, preview_win) catch {
+                                try self.notification.write_err(.UnableToRenderPdf);
+                                break :pdf_preview;
+                            };
+                        }
+                        break :file;
+                    }
+
+                    // If the user cannot render images, fallback to text version.
                     const output = std.process.Child.run(.{
                         .allocator = self.alloc,
                         .argv = &[_][]const u8{ "pdftotext", "-f", "0", "-l", "5", self.current_item_path, "-" },
                         .cwd_dir = self.directories.dir,
                     }) catch {
+                        try self.notification.write_err(.UnableToRenderTextPdf);
                         _ = try preview_win.print(&.{
                             .{
-                                .text = "No preview available. Install pdftotext to get PDF previews.",
+                                .text = "No preview available",
                             },
                         }, .{});
                         break :file;
@@ -675,9 +695,10 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                     defer self.alloc.free(output.stdout);
 
                     if (output.term.Exited != 0) {
+                        try self.notification.write_err(.UnableToRenderTextPdf);
                         _ = try preview_win.print(&.{
                             .{
-                                .text = "No preview available. Install pdftotext to get PDF previews.",
+                                .text = "No preview available",
                             },
                         }, .{});
                         break :file;

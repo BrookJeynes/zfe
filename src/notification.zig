@@ -19,6 +19,9 @@ const Error = enum {
     ItemAlreadyExists,
     UnableToRename,
     IncorrectPath,
+    UnableToOpenPdf,
+    UnableToRenderPdf,
+    UnableToRenderTextPdf,
 };
 
 len: usize = 0,
@@ -50,6 +53,9 @@ pub fn write_err(self: *Self, err: Error) !void {
         .IncorrectPath => self.write("Unable to find path.", .err),
         .EditorNotSet => self.write("$EDITOR is not set.", .err),
         .UnsupportedImageFormat => self.write("Unsupported image format.", .err),
+        .UnableToOpenPdf => self.write("Unable to open PDF. Attempting to render text version.", .err),
+        .UnableToRenderPdf => self.write("Unable to render PDF. Attempting to render text version.", .err),
+        .UnableToRenderTextPdf => self.write("Unable to render text PDF. Install pdftotext for text rendering.", .err),
     };
 }
 
