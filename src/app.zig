@@ -637,24 +637,24 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                 // TODO: Check if the current item is an image instead of just
                 // breaking if it's not.
                 if (config.show_images == true) unsupported_terminal: {
-                    if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
-                        var image = vaxis.zigimg.Image.fromFilePath(self.alloc, self.current_item_path) catch {
-                            break :unsupported_terminal;
-                        };
-                        defer image.deinit();
-                        if (self.vx.transmitImage(self.alloc, self.tty.anyWriter(), &image, .rgba)) |img| {
-                            self.image = img;
-                        } else |_| {
-                            if (self.image) |img| {
-                                self.vx.freeImage(self.tty.anyWriter(), img.id);
-                            }
-                            self.image = null;
-                            break :unsupported_terminal;
-                        }
+                    if (std.mem.eql(u8, self.last_item_path, self.current_item_path)) break :unsupported_terminal;
 
+                    var image = vaxis.zigimg.Image.fromFilePath(self.alloc, self.current_item_path) catch {
+                        break :unsupported_terminal;
+                    };
+                    defer image.deinit();
+                    if (self.vx.transmitImage(self.alloc, self.tty.anyWriter(), &image, .rgba)) |img| {
+                        self.image = img;
+                    } else |_| {
                         if (self.image) |img| {
-                            try img.draw(preview_win, .{ .scale = .contain });
+                            self.vx.freeImage(self.tty.anyWriter(), img.id);
                         }
+                        self.image = null;
+                        break :unsupported_terminal;
+                    }
+
+                    if (self.image) |img| {
+                        try img.draw(preview_win, .{ .scale = .contain });
                     }
 
                     break :file;
@@ -663,17 +663,18 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                 // Handle pdf.
                 if (std.mem.eql(u8, std.fs.path.extension(entry.name), ".pdf")) {
                     if (config.show_images == true) pdf_preview: {
-                        if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
-                            var pdf = Pdf.open(self.alloc, self.current_item_path) catch {
-                                try self.notification.write_err(.UnableToOpenPdf);
-                                break :pdf_preview;
-                            };
-                            defer pdf.deinit();
-                            pdf.draw(&self.vx, &self.tty, preview_win) catch {
-                                try self.notification.write_err(.UnableToRenderPdf);
-                                break :pdf_preview;
-                            };
-                        }
+                        if (std.mem.eql(u8, self.last_item_path, self.current_item_path)) break :file;
+
+                        var pdf = Pdf.open(self.alloc, self.current_item_path) catch {
+                            try self.notification.write_err(.UnableToOpenPdf);
+                            break :pdf_preview;
+                        };
+                        defer pdf.deinit();
+                        pdf.draw(&self.vx, &self.tty, preview_win) catch {
+                            try self.notification.write_err(.UnableToRenderPdf);
+                            break :pdf_preview;
+                        };
+
                         break :file;
                     }
 
