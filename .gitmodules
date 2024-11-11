@@ -1,0 +1,6 @@
+[submodule "external/--depth=1"]
+	path = external/--depth=1
+	url = https://github.com/ArtifexSoftware/mupdf/
+[submodule "external/mupdf"]
+	path = external/mupdf
+	url = https://github.com/ArtifexSoftware/mupdf/

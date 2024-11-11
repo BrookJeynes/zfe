@@ -8,7 +8,7 @@ const targets: []const std.Target.Query = &.{
     .{ .cpu_arch = .x86_64, .os_tag = .macos },
 };
 
-pub fn createExe(b: *std.Build, exe_name: []const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
+fn createExe(b: *std.Build, exe_name: []const u8, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
     const libvaxis = b.dependency("vaxis", .{ .target = target }).module("vaxis");
     const fuzzig = b.dependency("fuzzig", .{ .target = target }).module("fuzzig");
     const zuid = b.dependency("zuid", .{ .target = target }).module("zuid");
@@ -24,11 +24,7 @@ pub fn createExe(b: *std.Build, exe_name: []const u8, target: std.Build.Resolved
     exe.root_module.addImport("fuzzig", fuzzig);
     exe.root_module.addImport("zuid", zuid);
 
-    if (target.result.os.tag == .macos) {
-        exe.addIncludePath(.{ .cwd_relative = "/opt/homebrew/include" });
-        exe.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/lib" });
-    }
-
+    exe.addIncludePath(b.path("./external/mupdf/include/"));
     exe.linkSystemLibrary("mupdf");
     exe.linkSystemLibrary("z");
     exe.linkLibC();
