@@ -50,7 +50,7 @@ const Styles = struct {
         .bg = .{ .rgb = .{ 45, 45, 45 } },
         .bold = true,
     },
-    notifications_box: vaxis.Style = vaxis.Style{
+    notification_box: vaxis.Style = vaxis.Style{
         .bg = .{ .rgb = .{ 45, 45, 45 } },
     },
     list_item: vaxis.Style = vaxis.Style{},

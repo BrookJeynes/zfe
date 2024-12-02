@@ -783,7 +783,7 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
             self.text_input.clearAndFree();
         }
 
-        notification_win.fill(.{ .style = config.styles.notifications_box });
+        notification_win.fill(.{ .style = config.styles.notification_box });
         _ = notification_win.printSegment(.{
             .text = self.notification.slice(),
             .style = switch (self.notification.style) {
