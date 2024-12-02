@@ -132,8 +132,6 @@ pub fn run(self: *App) !void {
     try self.vx.queryTerminal(self.tty.anyWriter(), 1 * std.time.ns_per_s);
 
     while (!self.should_quit) {
-        self.notification.reset();
-
         loop.pollEvent();
         while (loop.tryEvent()) |event| {
             switch (self.state) {
@@ -194,7 +192,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     }
                 },
                 Key.enter, 'l', Key.right => {
-                    const entry = try self.directories.get_selected();
+                    const entry = self.directories.get_selected() catch return;
 
                     switch (entry.kind) {
                         .directory => {
@@ -258,7 +256,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                 },
                 'D' => {
                     const entry = self.directories.get_selected() catch {
-                        try self.notification.write_err(.UnableToDeleteItem);
+                        try self.notification.write_err(.UnableToDelete);
                         return;
                     };
 
@@ -267,7 +265,6 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     var tmp_path_buf: [std.fs.max_path_bytes]u8 = undefined;
                     const tmp_path = try self.alloc.dupe(u8, try std.fmt.bufPrint(&tmp_path_buf, "/tmp/{s}-{s}", .{ entry.name, zuid.new.v4().toString() }));
 
-                    try self.notification.write("Deleting item...", .info);
                     if (self.directories.dir.rename(entry.name, tmp_path)) {
                         if (self.actions.push(.{
                             .delete = .{ .old = old_path, .new = tmp_path },
@@ -275,13 +272,13 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             self.alloc.free(prev_elem.delete.old);
                             self.alloc.free(prev_elem.delete.new);
                         }
-                        try self.notification.write("Deleted item.", .info);
 
+                        try self.notification.write_info(.Deleted);
                         self.directories.remove_selected();
                     } else |err| {
                         switch (err) {
                             error.RenameAcrossMountPoints => try self.notification.write_err(.UnableToDeleteAcrossMountPoints),
-                            else => try self.notification.write_err(.UnableToDeleteItem),
+                            else => try self.notification.write_err(.UnableToDelete),
                         }
                         self.alloc.free(old_path);
                         self.alloc.free(tmp_path);
@@ -328,7 +325,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                             else => try self.notification.write_err(.UnknownError),
                                         }
                                     };
-                                    try self.notification.write("Restored deleted item.", .info);
+                                    try self.notification.write_info(.RestoredDelete);
                                 } else |_| {
                                     try self.notification.write_err(.UnableToUndo);
                                 }
@@ -347,7 +344,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                             else => try self.notification.write_err(.UnknownError),
                                         }
                                     };
-                                    try self.notification.write("Restored previous item name.", .info);
+                                    try self.notification.write_info(.RestoredRename);
                                 } else |_| {
                                     try self.notification.write_err(.UnableToUndo);
                                 }
@@ -356,7 +353,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
 
                         self.directories.entries.selected = selected;
                     } else {
-                        try self.notification.write("Nothing to undo.", .info);
+                        try self.notification.write_info(.EmptyUndo);
                     }
                 },
                 '/' => {
@@ -365,18 +362,22 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                 'R' => {
                     self.state = .rename;
 
-                    const entry = try self.directories.get_selected();
+                    const entry = self.directories.get_selected() catch {
+                        self.state = .normal;
+                        try self.notification.write_err(.UnableToRename);
+                        return;
+                    };
+
                     self.text_input.insertSliceAtCursor(entry.name) catch {
                         self.state = .normal;
                         try self.notification.write_err(.UnableToRename);
+                        return;
                     };
                 },
                 'c' => {
                     self.state = .change_dir;
                 },
-                else => {
-                    // log.debug("codepoint: {d}\n", .{key.codepoint});
-                },
+                else => {},
             }
         },
         .winsize => |ws| try self.vx.resize(self.alloc, self.tty.anyWriter(), ws),
@@ -415,6 +416,8 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                         .new_dir => {
                             const dir = self.inputToSlice();
                             if (self.directories.dir.makeDir(dir)) {
+                                try self.notification.write_info(.CreatedFolder);
+
                                 self.directories.cleanup();
                                 self.directories.populate_entries("") catch |err| {
                                     switch (err) {
@@ -438,6 +441,9 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                             } else {
                                 if (self.directories.dir.createFile(file, .{})) |f| {
                                     f.close();
+
+                                    try self.notification.write_info(.CreatedFile);
+
                                     self.directories.cleanup();
                                     self.directories.populate_entries("") catch |err| {
                                         switch (err) {
@@ -479,6 +485,8 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                                     self.alloc.free(prev_elem.rename.new);
                                 }
 
+                                try self.notification.write_info(.Renamed);
+
                                 self.directories.cleanup();
                                 self.directories.populate_entries("") catch |err| {
                                     switch (err) {
@@ -493,6 +501,8 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                             const path = self.inputToSlice();
                             if (self.directories.dir.openDir(path, .{ .iterate = true })) |dir| {
                                 self.directories.dir = dir;
+
+                                try self.notification.write_info(.ChangedDir);
 
                                 self.directories.cleanup();
                                 self.directories.populate_entries("") catch |err| {
@@ -750,21 +760,41 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
         .height = info_div,
     });
 
-    // Display info box.
+    // Display notification box.
     if (self.notification.len > 0) {
+        const notification_width_padding = 4;
+        const notification_height_padding = 3;
+        const notification_screen_pos_padding = 10;
+
+        const max_notification_width = win.width / 4;
+        const notification_width = self.notification.len + notification_width_padding;
+        const abs_notification_width = if (notification_width > max_notification_width) max_notification_width else notification_width;
+        const notification_height = try std.math.divCeil(usize, self.notification.len, abs_notification_width) + notification_height_padding;
+
+        const notification_win = win.child(.{
+            .x_off = @intCast(win.width - (abs_notification_width + notification_screen_pos_padding)),
+            .y_off = top_div,
+            .width = @intCast(abs_notification_width),
+            .height = @intCast(notification_height),
+            .border = .{ .where = .all },
+        });
+
         if (self.text_input.buf.realLength() > 0) {
             self.text_input.clearAndFree();
         }
 
-        _ = info_win.print(&.{
-            .{
-                .text = self.notification.slice(),
-                .style = switch (self.notification.style) {
-                    .info => config.styles.info_bar,
-                    .err => config.styles.error_bar,
-                },
+        notification_win.fill(.{ .style = config.styles.notifications_box });
+        _ = notification_win.printSegment(.{
+            .text = self.notification.slice(),
+            .style = switch (self.notification.style) {
+                .info => config.styles.info_bar,
+                .err => config.styles.error_bar,
             },
-        }, .{});
+        }, .{ .wrap = .word });
+
+        if (std.time.timestamp() - self.notification.timer > Notification.notification_timeout) {
+            self.notification.reset();
+        }
     }
 
     // Display user input box.
