@@ -23,11 +23,7 @@ fn createExe(b: *std.Build, exe_name: []const u8, target: std.Build.ResolvedTarg
     exe.root_module.addImport("vaxis", libvaxis);
     exe.root_module.addImport("fuzzig", fuzzig);
     exe.root_module.addImport("zuid", zuid);
-
-    exe.addIncludePath(b.path("./external/mupdf/include/"));
-    exe.linkSystemLibrary("mupdf");
-    exe.linkSystemLibrary("z");
-    exe.linkLibC();
+    addMupdfDeps(exe, target.result);
 
     return exe;
 }
@@ -72,4 +68,25 @@ fn build_targets(b: *std.Build) !void {
 
         b.getInstallStep().dependOn(&target_output.step);
     }
+}
+
+fn addMupdfDeps(exe: *std.Build.Step.Compile, target: std.Target) void {
+    if (target.os.tag == .macos and target.cpu.arch == .aarch64) {
+        exe.addIncludePath(.{ .cwd_relative = "/opt/homebrew/include" });
+        exe.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/lib" });
+    } else if (target.os.tag == .macos and target.cpu.arch == .x86_64) {
+        exe.addIncludePath(.{ .cwd_relative = "/usr/local/include" });
+        exe.addLibraryPath(.{ .cwd_relative = "/usr/local/lib" });
+    } else if (target.os.tag == .linux) {
+        const linux_libs = [_][]const u8{
+            "mupdf",    "harfbuzz",
+            "freetype", "jbig2dec",
+            "jpeg",     "openjp2",
+            "gumbo",    "mujs",
+        };
+        for (linux_libs) |lib| exe.linkSystemLibrary(lib);
+    }
+    exe.linkSystemLibrary("mupdf");
+    exe.linkSystemLibrary("z");
+    exe.linkLibC();
 }
