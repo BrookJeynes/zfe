@@ -564,7 +564,8 @@ pub fn draw(self: *App) !void {
         try self.draw_preview(win, file_name_bar);
     }
 
-    try self.draw_info(win);
+    try self.draw_user_input(win);
+    try self.draw_notification(win);
 }
 
 fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
@@ -752,15 +753,33 @@ fn draw_abs_file_path(self: *App, win: vaxis.Window) !vaxis.Window {
     return abs_file_path_bar;
 }
 
-fn draw_info(self: *App, win: vaxis.Window) !void {
-    const info_win = win.child(.{
+fn draw_user_input(self: *App, win: vaxis.Window) !void {
+    const user_input_win = win.child(.{
         .x_off = 0,
         .y_off = top_div,
         .width = win.width,
         .height = info_div,
     });
 
-    // Display notification box.
+    switch (self.state) {
+        .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
+            // TODO: Investigate why removing this causes a segfault when
+            // entering user input while a notification is being rendered.
+            self.notification.reset();
+
+            self.text_input.draw(user_input_win);
+        },
+        .normal => {
+            if (self.text_input.buf.realLength() > 0) {
+                self.text_input.draw(user_input_win);
+            }
+
+            win.hideCursor();
+        },
+    }
+}
+
+fn draw_notification(self: *App, win: vaxis.Window) !void {
     if (self.notification.len > 0) {
         const notification_width_padding = 4;
         const notification_height_padding = 3;
@@ -795,20 +814,5 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
         if (std.time.timestamp() - self.notification.timer > Notification.notification_timeout) {
             self.notification.reset();
         }
-    }
-
-    // Display user input box.
-    switch (self.state) {
-        .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
-            self.notification.reset();
-            self.text_input.draw(info_win);
-        },
-        .normal => {
-            if (self.text_input.buf.realLength() > 0) {
-                self.text_input.draw(info_win);
-            }
-
-            win.hideCursor();
-        },
     }
 }
