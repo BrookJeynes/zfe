@@ -619,25 +619,34 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                 const bytes = try file.readAll(&self.directories.file_contents);
 
                 // Handle image.
-                if (config.show_images == true) unsupported_terminal: {
-                    if (!std.mem.eql(u8, self.last_item_path, self.current_item_path)) {
-                        var image = vaxis.zigimg.Image.fromFilePath(self.alloc, self.current_item_path) catch {
-                            break :unsupported_terminal;
-                        };
-                        defer image.deinit();
-                        if (self.vx.transmitImage(self.alloc, self.tty.anyWriter(), &image, .rgba)) |img| {
-                            self.image = img;
-                        } else |_| {
-                            if (self.image) |img| {
-                                self.vx.freeImage(self.tty.anyWriter(), img.id);
-                            }
-                            self.image = null;
-                            break :unsupported_terminal;
+                if (config.show_images == true) unsupported: {
+                    var match = false;
+                    inline for (@typeInfo(vaxis.zigimg.Image.Format).Enum.fields) |field| {
+                        const entry_ext = std.mem.trimLeft(u8, std.fs.path.extension(entry.name), ".");
+                        if (std.mem.eql(u8, entry_ext, field.name)) {
+                            match = true;
                         }
+                    }
+                    if (!match) break :unsupported;
 
+                    if (std.mem.eql(u8, self.last_item_path, self.current_item_path)) break :unsupported;
+
+                    var image = vaxis.zigimg.Image.fromFilePath(self.alloc, self.current_item_path) catch {
+                        break :unsupported;
+                    };
+                    defer image.deinit();
+                    if (self.vx.transmitImage(self.alloc, self.tty.anyWriter(), &image, .rgba)) |img| {
+                        self.image = img;
+                    } else |_| {
                         if (self.image) |img| {
-                            try img.draw(preview_win, .{ .scale = .contain });
+                            self.vx.freeImage(self.tty.anyWriter(), img.id);
                         }
+                        self.image = null;
+                        break :unsupported;
+                    }
+
+                    if (self.image) |img| {
+                        try img.draw(preview_win, .{ .scale = .contain });
                     }
 
                     break :file;
