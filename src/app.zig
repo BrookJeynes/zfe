@@ -26,11 +26,6 @@ pub const State = enum {
     rename,
 };
 
-const InputReturnStatus = enum {
-    exit,
-    default,
-};
-
 const ActionPaths = struct {
     /// Allocated.
     old: []const u8,
@@ -48,14 +43,15 @@ const Event = union(enum) {
     winsize: vaxis.Winsize,
 };
 
-const top_div = 1;
-const info_div = 1;
-const bottom_div = 1;
+const top_div: u16 = 1;
+const info_div: u16 = 1;
+const bottom_div: u16 = 1;
 const actions_len = 100;
 
 const App = @This();
 
 alloc: std.mem.Allocator,
+should_quit: bool,
 vx: vaxis.Vaxis = undefined,
 tty: vaxis.Tty = undefined,
 logger: Logger,
@@ -67,6 +63,8 @@ current_item_path_buf: [std.fs.max_path_bytes]u8 = undefined,
 current_item_path: []u8 = "",
 last_item_path_buf: [std.fs.max_path_bytes]u8 = undefined,
 last_item_path: []u8 = "",
+file_info_buf: [std.fs.max_path_bytes]u8 = undefined,
+file_name_buf: [std.fs.max_path_bytes + 2]u8 = undefined, // +2 to accomodate for [<file_name>]
 
 directories: Directories,
 notification: Notification,
@@ -90,6 +88,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
 
     return App{
         .alloc = alloc,
+        .should_quit = false,
         .vx = vx,
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
@@ -123,34 +122,36 @@ pub fn run(self: *App) !void {
 
     try self.directories.populate_entries("");
 
-    var loop: vaxis.Loop(Event) = .{ .vaxis = &self.vx, .tty = &self.tty };
+    var loop: vaxis.Loop(Event) = .{
+        .vaxis = &self.vx,
+        .tty = &self.tty,
+    };
     try loop.start();
     defer loop.stop();
 
     try self.vx.enterAltScreen(self.tty.anyWriter());
     try self.vx.queryTerminal(self.tty.anyWriter(), 1 * std.time.ns_per_s);
-    self.vx.queueRefresh();
 
-    while (true) {
+    while (!self.should_quit) {
         self.notification.reset();
-        const event = loop.nextEvent();
 
-        switch (self.state) {
-            .normal => {
-                switch (try self.handle_normal_event(event, &loop)) {
-                    .exit => return,
-                    .default => {},
-                }
-            },
-            .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
-                switch (try self.handle_input_event(event)) {
-                    .exit => return,
-                    .default => {},
-                }
-            },
+        loop.pollEvent();
+        while (loop.tryEvent()) |event| {
+            switch (self.state) {
+                .normal => {
+                    try self.handle_normal_event(event, &loop);
+                },
+                .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
+                    try self.handle_input_event(event);
+                },
+            }
         }
 
         try self.draw();
+
+        var buffered = self.tty.bufferedWriter();
+        try self.vx.render(buffered.writer().any());
+        try buffered.flush();
     }
 }
 
@@ -159,11 +160,11 @@ pub fn inputToSlice(self: *App) []const u8 {
     return self.text_input.sliceToCursor(&self.text_input_buf);
 }
 
-pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !InputReturnStatus {
+pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !void {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
-                return .exit;
+                self.should_quit = true;
             }
 
             switch (key.codepoint) {
@@ -259,7 +260,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                 'D' => {
                     const entry = self.directories.get_selected() catch {
                         try self.notification.write_err(.UnableToDeleteItem);
-                        return .default;
+                        return;
                     };
 
                     var old_path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -379,19 +380,16 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                 },
             }
         },
-        .winsize => |ws| {
-            try self.vx.resize(self.alloc, self.tty.anyWriter(), ws);
-        },
+        .winsize => |ws| try self.vx.resize(self.alloc, self.tty.anyWriter(), ws),
     }
-
-    return .default;
 }
 
-pub fn handle_input_event(self: *App, event: Event) !InputReturnStatus {
+pub fn handle_input_event(self: *App, event: Event) !void {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl)) {
-                return .exit;
+                self.should_quit = true;
+                return;
             }
 
             switch (key.codepoint) {
@@ -540,12 +538,8 @@ pub fn handle_input_event(self: *App, event: Event) !InputReturnStatus {
                 },
             }
         },
-        .winsize => |ws| {
-            try self.vx.resize(self.alloc, self.tty.anyWriter(), ws);
-        },
+        .winsize => |ws| try self.vx.resize(self.alloc, self.tty.anyWriter(), ws),
     }
-
-    return .default;
 }
 
 pub fn draw(self: *App) !void {
@@ -553,32 +547,28 @@ pub fn draw(self: *App) !void {
     win.clear();
 
     const abs_file_path_bar = try self.draw_abs_file_path(win);
-    var file_info_buf: [1024]u8 = undefined;
-    const file_info_bar = try self.draw_file_info(win, &file_info_buf);
+    const file_info_bar = try self.draw_file_info(win);
     try self.draw_current_dir_list(win, abs_file_path_bar, file_info_bar);
 
     if (config.preview_file == true) {
-        var file_name_buf: [std.fs.MAX_NAME_BYTES + 2]u8 = undefined;
-        const file_name_bar = try self.draw_file_name(win, &file_name_buf);
+        const file_name_bar = try self.draw_file_name(win);
         try self.draw_preview(win, file_name_bar);
     }
 
     try self.draw_info(win);
-
-    try self.vx.render(self.tty.anyWriter());
 }
 
-fn draw_file_name(self: *App, win: vaxis.Window, buf: []u8) !vaxis.Window {
+fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
     const file_name_bar = win.child(.{
         .x_off = win.width / 2,
         .y_off = 0,
-        .width = .{ .limit = win.width },
-        .height = .{ .limit = top_div },
+        .width = win.width,
+        .height = top_div,
     });
 
     if (self.directories.get_selected()) |entry| {
-        const file_name = try std.fmt.bufPrint(buf, "[{s}]", .{entry.name});
-        _ = try file_name_bar.print(&.{vaxis.Segment{
+        const file_name = try std.fmt.bufPrint(&self.file_name_buf, "[{s}]", .{entry.name});
+        _ = file_name_bar.print(&.{vaxis.Segment{
             .text = file_name,
             .style = config.styles.file_name,
         }}, .{});
@@ -591,8 +581,8 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
     const preview_win = win.child(.{
         .x_off = win.width / 2,
         .y_off = top_div + 1,
-        .width = .{ .limit = win.width / 2 },
-        .height = .{ .limit = win.height - (file_name_win.height + top_div + bottom_div) },
+        .width = win.width / 2,
+        .height = win.height - (file_name_win.height + top_div + bottom_div),
     });
 
     // Populate preview bar
@@ -622,11 +612,7 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                         else => try self.notification.write_err(.UnknownError),
                     }
 
-                    _ = try preview_win.print(&.{
-                        .{
-                            .text = "No preview available.",
-                        },
-                    }, .{});
+                    _ = preview_win.print(&.{.{ .text = "No preview available." }}, .{});
 
                     break :file;
                 };
@@ -685,11 +671,9 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
                         .cwd_dir = self.directories.dir,
                     }) catch {
                         try self.notification.write_err(.UnableToRenderTextPdf);
-                        _ = try preview_win.print(&.{
-                            .{
-                                .text = "No preview available",
-                            },
-                        }, .{});
+                        _ = preview_win.print(&.{.{
+                            .text = "No preview available.",
+                        }}, .{});
                         break :file;
                     };
                     defer self.alloc.free(output.stderr);
@@ -697,65 +681,52 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
 
                     if (output.term.Exited != 0) {
                         try self.notification.write_err(.UnableToRenderTextPdf);
-                        _ = try preview_win.print(&.{
-                            .{
-                                .text = "No preview available",
-                            },
-                        }, .{});
+                        _ = preview_win.print(&.{.{
+                            .text = "No preview available.",
+                        }}, .{});
                         break :file;
                     }
 
                     if (self.directories.pdf_contents) |contents| self.alloc.free(contents);
                     self.directories.pdf_contents = try self.alloc.dupe(u8, output.stdout);
 
-                    _ = try preview_win.print(&.{
-                        .{
-                            .text = self.directories.pdf_contents.?,
-                        },
-                    }, .{});
+                    _ = preview_win.print(&.{.{ .text = self.directories.pdf_contents.? }}, .{});
                     break :file;
                 }
 
                 // Handle utf-8.
                 if (std.unicode.utf8ValidateSlice(self.directories.file_contents[0..bytes])) {
-                    _ = try preview_win.print(&.{
-                        .{
-                            .text = self.directories.file_contents[0..bytes],
-                        },
-                    }, .{});
+                    _ = preview_win.print(&.{.{ .text = self.directories.file_contents[0..bytes] }}, .{});
                     break :file;
                 }
 
                 // Fallback to no preview.
-                _ = try preview_win.print(&.{
-                    .{
-                        .text = "No preview available.",
-                    },
-                }, .{});
+                _ = preview_win.print(&.{.{ .text = "No preview available." }}, .{});
             },
             else => {
-                _ = try preview_win.print(&.{vaxis.Segment{ .text = self.current_item_path }}, .{});
+                _ = preview_win.print(&.{vaxis.Segment{ .text = self.current_item_path }}, .{});
             },
         }
     }
 }
 
-fn draw_file_info(self: *App, win: vaxis.Window, file_info_buf: []u8) !vaxis.Window {
-    const file_info = try std.fmt.bufPrint(file_info_buf, "{d}/{d} {s} {s}", .{
+fn draw_file_info(self: *App, win: vaxis.Window) !vaxis.Window {
+    const file_info = try std.fmt.bufPrint(&self.file_info_buf, "{d}/{d} {s} {s}", .{
         self.directories.entries.selected + 1,
         self.directories.entries.len(),
         std.fs.path.extension(if (self.directories.get_selected()) |entry| entry.name else |_| ""),
+        // TODO: This should be the file size, not dir.
         std.fmt.fmtIntSizeDec((try self.directories.dir.metadata()).size()),
     });
 
     const file_info_win = win.child(.{
         .x_off = 0,
         .y_off = win.height - bottom_div,
-        .width = if (config.preview_file) .{ .limit = win.width / 2 } else .{ .limit = win.width },
-        .height = .{ .limit = bottom_div },
+        .width = if (config.preview_file) win.width / 2 else win.width,
+        .height = bottom_div,
     });
     file_info_win.fill(vaxis.Cell{ .style = config.styles.file_information });
-    _ = try file_info_win.print(&.{vaxis.Segment{ .text = file_info, .style = config.styles.file_information }}, .{});
+    _ = file_info_win.print(&.{vaxis.Segment{ .text = file_info, .style = config.styles.file_information }}, .{});
 
     return file_info_win;
 }
@@ -764,8 +735,8 @@ fn draw_current_dir_list(self: *App, win: vaxis.Window, abs_file_path: vaxis.Win
     const current_dir_list_win = win.child(.{
         .x_off = 0,
         .y_off = top_div + 1,
-        .width = if (config.preview_file) .{ .limit = win.width / 2 } else .{ .limit = win.width },
-        .height = .{ .limit = win.height - (abs_file_path.height + file_information.height + top_div + bottom_div) },
+        .width = if (config.preview_file) win.width / 2 else win.width,
+        .height = win.height - (abs_file_path.height + file_information.height + top_div + bottom_div),
     });
     try self.directories.write_entries(current_dir_list_win, config.styles.selected_list_item, config.styles.list_item);
 
@@ -776,10 +747,10 @@ fn draw_abs_file_path(self: *App, win: vaxis.Window) !vaxis.Window {
     const abs_file_path_bar = win.child(.{
         .x_off = 0,
         .y_off = 0,
-        .width = .{ .limit = win.width },
-        .height = .{ .limit = top_div },
+        .width = win.width,
+        .height = top_div,
     });
-    _ = try abs_file_path_bar.print(&.{vaxis.Segment{ .text = try self.directories.full_path(".") }}, .{});
+    _ = abs_file_path_bar.print(&.{vaxis.Segment{ .text = try self.directories.full_path(".") }}, .{});
 
     return abs_file_path_bar;
 }
@@ -788,8 +759,8 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
     const info_win = win.child(.{
         .x_off = 0,
         .y_off = top_div,
-        .width = .{ .limit = win.width },
-        .height = .{ .limit = info_div },
+        .width = win.width,
+        .height = info_div,
     });
 
     // Display info box.
@@ -798,7 +769,7 @@ fn draw_info(self: *App, win: vaxis.Window) !void {
             self.text_input.clearAndFree();
         }
 
-        _ = try info_win.print(&.{
+        _ = info_win.print(&.{
             .{
                 .text = self.notification.slice(),
                 .style = switch (self.notification.style) {

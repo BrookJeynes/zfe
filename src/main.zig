@@ -3,14 +3,26 @@ const builtin = @import("builtin");
 
 const App = @import("app.zig");
 
-const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
 
-var app: App = undefined;
+const config = &@import("./config.zig").config;
+pub const panic = vaxis.panic_handler;
+
+pub const std_options: std.Options = .{
+    .log_scope_levels = &.{
+        .{ .scope = .vaxis, .level = .warn },
+        .{ .scope = .vaxis_parser, .level = .warn },
+    },
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    defer {
+        const deinit_status = gpa.deinit();
+        if (deinit_status == .leak) {
+            std.log.err("memory leak", .{});
+        }
+    }
     const alloc = gpa.allocator();
 
     config.parse(alloc) catch |err| switch (err) {
@@ -29,13 +41,8 @@ pub fn main() !void {
         },
     };
 
-    app = try App.init(alloc);
+    var app = try App.init(alloc);
     defer app.deinit();
 
     try app.run();
-}
-
-pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    app.vx.deinit(app.alloc, app.tty.anyWriter());
-    std.builtin.default_panic(msg, trace, ret_addr);
 }

@@ -95,24 +95,12 @@ pub fn write_sub_entries(
             continue;
         }
 
-        if (i > window.height) {
-            continue;
-        }
+        if (i > window.height) continue;
 
-        const w = window.child(.{
-            .y_off = i,
-            .height = .{ .limit = 1 },
-        });
-        w.fill(vaxis.Cell{
-            .style = style,
-        });
+        const w = window.child(.{ .y_off = @intCast(i), .height = 1 });
+        w.fill(vaxis.Cell{ .style = style });
 
-        _ = try w.print(&.{
-            .{
-                .text = item,
-                .style = style,
-            },
-        }, .{});
+        _ = w.print(&.{.{ .text = item, .style = style }}, .{});
     }
 }
 
@@ -149,19 +137,14 @@ pub fn write_entries(
             continue;
         }
 
-        if (i > window.height) {
-            continue;
-        }
+        if (i > window.height) continue;
 
-        const w = window.child(.{
-            .y_off = i,
-            .height = .{ .limit = 1 },
-        });
+        const w = window.child(.{ .y_off = @intCast(i), .height = 1 });
         w.fill(vaxis.Cell{
             .style = if (is_selected) selected_list_item_style else list_item_style,
         });
 
-        _ = try w.print(&.{
+        _ = w.print(&.{
             .{
                 .text = item.name,
                 .style = if (is_selected) selected_list_item_style else list_item_style,
