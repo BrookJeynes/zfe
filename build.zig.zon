@@ -1,6 +1,6 @@
 .{
     .name = "zfe",
-    .version = "0.5.2",
+    .version = "0.6.0",
     .minimum_zig_version = "0.13.0",
 
     .dependencies = .{
