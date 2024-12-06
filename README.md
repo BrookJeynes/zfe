@@ -72,6 +72,7 @@ Styles = struct {
     .file_information: Style
     .error_bar: Style,
     .info_bar: Style,
+    .notification_box: Style,
 }
 
 Style = struct {
