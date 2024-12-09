@@ -763,10 +763,6 @@ fn draw_user_input(self: *App, win: vaxis.Window) !void {
 
     switch (self.state) {
         .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
-            // TODO: Investigate why removing this causes a segfault when
-            // entering user input while a notification is being rendered.
-            self.notification.reset();
-
             self.text_input.draw(user_input_win);
         },
         .normal => {
@@ -802,10 +798,6 @@ fn draw_notification(self: *App, win: vaxis.Window) !void {
             .height = @intCast(notification_height),
             .border = .{ .where = .all },
         });
-
-        if (self.text_input.buf.realLength() > 0) {
-            self.text_input.clearAndFree();
-        }
 
         notification_win.fill(.{ .style = config.styles.notification_box });
         _ = notification_win.printSegment(.{
