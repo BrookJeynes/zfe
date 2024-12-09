@@ -39,7 +39,7 @@ len: usize = 0,
 buf: [1024]u8 = undefined,
 style: Style = Style.info,
 fbs: std.io.FixedBufferStream([]u8) = undefined,
-/// How long until the notification dissappears in seconds.
+/// How long until the notification disappears in seconds.
 timer: i64 = 0,
 
 pub fn init(self: *Self) void {
