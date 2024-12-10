@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const vaxis = @import("vaxis");
 const environment = @import("./environment.zig");
+const vaxis = @import("vaxis");
 
 const Config = struct {
     show_hidden: bool = true,

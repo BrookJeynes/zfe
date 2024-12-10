@@ -1,18 +1,13 @@
 const std = @import("std");
 const builtin = @import("builtin");
-
 const environment = @import("./environment.zig");
 const Notification = @import("./notification.zig");
 const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const Directories = @import("./directories.zig");
 const CircStack = @import("./circ_stack.zig").CircularStack;
-
 const zuid = @import("zuid");
-
 const vaxis = @import("vaxis");
-const TextInput = @import("vaxis").widgets.TextInput;
-const Cell = vaxis.Cell;
 const Key = vaxis.Key;
 
 pub const State = enum {
@@ -37,7 +32,7 @@ pub const Action = union(enum) {
 };
 
 const Event = union(enum) {
-    key_press: vaxis.Key,
+    key_press: Key,
     winsize: vaxis.Winsize,
 };
 
@@ -66,7 +61,7 @@ file_name_buf: [std.fs.max_path_bytes + 2]u8 = undefined, // +2 to accomodate fo
 directories: Directories,
 notification: Notification,
 
-text_input: TextInput,
+text_input: vaxis.widgets.TextInput,
 text_input_buf: [std.fs.max_path_bytes]u8 = undefined,
 
 image: ?vaxis.Image = null,
@@ -89,7 +84,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .vx = vx,
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
-        .text_input = TextInput.init(alloc, &vx.unicode),
+        .text_input = vaxis.widgets.TextInputTextInput.init(alloc, &vx.unicode),
         .notification = Notification{},
         .actions = CircStack(Action, actions_len).init(),
         .last_known_height = vx.window().height,
