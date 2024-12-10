@@ -41,7 +41,7 @@ pub fn List(comptime T: type) type {
             return self.all()[index];
         }
 
-        pub fn get_selected(self: *Self) !T {
+        pub fn getSelected(self: *Self) !T {
             if (self.len() > 0) {
                 if (self.selected >= self.len()) {
                     self.selected = self.len() - 1;
@@ -81,14 +81,14 @@ pub fn List(comptime T: type) type {
             }
         }
 
-        pub fn select_last(self: *Self, win_height: usize) void {
+        pub fn selectLast(self: *Self, win_height: usize) void {
             self.selected = self.len() - 1;
             if (self.selected >= win_height) {
                 self.offset = self.selected - (win_height - 1);
             }
         }
 
-        pub fn select_first(self: *Self) void {
+        pub fn selectFirst(self: *Self) void {
             self.selected = 0;
             self.offset = 0;
         }

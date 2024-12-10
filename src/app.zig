@@ -249,10 +249,10 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     self.directories.entries.previous(self.last_known_height);
                 },
                 'G' => {
-                    self.directories.entries.select_last(self.last_known_height);
+                    self.directories.entries.selectLast(self.last_known_height);
                 },
                 'g' => {
-                    self.directories.entries.select_first();
+                    self.directories.entries.selectFirst();
                 },
                 'D' => {
                     const entry = self.directories.get_selected() catch {

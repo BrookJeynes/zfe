@@ -54,7 +54,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn get_selected(self: *Self) !std.fs.Dir.Entry {
-    return self.entries.get_selected();
+    return self.entries.getSelected();
 }
 
 /// Asserts there is a selected item.
