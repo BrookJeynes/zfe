@@ -136,10 +136,10 @@ pub fn run(self: *App) !void {
         while (loop.tryEvent()) |event| {
             switch (self.state) {
                 .normal => {
-                    try self.handle_normal_event(event, &loop);
+                    try self.handleNormalEvent(event, &loop);
                 },
                 .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
-                    try self.handle_input_event(event);
+                    try self.handleInputEvent(event);
                 },
             }
         }
@@ -157,7 +157,7 @@ pub fn inputToSlice(self: *App) []const u8 {
     return self.text_input.sliceToCursor(&self.text_input_buf);
 }
 
-pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !void {
+pub fn handleNormalEvent(self: *App, event: Event, loop: *vaxis.Loop(Event)) !void {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
@@ -384,7 +384,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
     }
 }
 
-pub fn handle_input_event(self: *App, event: Event) !void {
+pub fn handleInputEvent(self: *App, event: Event) !void {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl)) {
@@ -555,20 +555,20 @@ pub fn draw(self: *App) !void {
     const win = self.vx.window();
     win.clear();
 
-    const abs_file_path_bar = try self.draw_abs_file_path(win);
-    const file_info_bar = try self.draw_file_info(win);
-    try self.draw_current_dir_list(win, abs_file_path_bar, file_info_bar);
+    const abs_file_path_bar = try self.drawAbsFilePath(win);
+    const file_info_bar = try self.drawFileInfo(win);
+    try self.drawDirList(win, abs_file_path_bar, file_info_bar);
 
     if (config.preview_file == true) {
-        const file_name_bar = try self.draw_file_name(win);
-        try self.draw_preview(win, file_name_bar);
+        const file_name_bar = try self.drawFileName(win);
+        try self.drawFilePreview(win, file_name_bar);
     }
 
-    try self.draw_user_input(win);
-    try self.draw_notification(win);
+    try self.drawUserInput(win);
+    try self.drawNotification(win);
 }
 
-fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
+fn drawFileName(self: *App, win: vaxis.Window) !vaxis.Window {
     const file_name_bar = win.child(.{
         .x_off = win.width / 2,
         .y_off = 0,
@@ -587,7 +587,7 @@ fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
     return file_name_bar;
 }
 
-fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !void {
+fn drawFilePreview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !void {
     const preview_win = win.child(.{
         .x_off = win.width / 2,
         .y_off = top_div + 1,
@@ -708,7 +708,7 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
     }
 }
 
-fn draw_file_info(self: *App, win: vaxis.Window) !vaxis.Window {
+fn drawFileInfo(self: *App, win: vaxis.Window) !vaxis.Window {
     const file_info = try std.fmt.bufPrint(&self.file_info_buf, "{d}/{d} {s} {s}", .{
         self.directories.entries.selected + 1,
         self.directories.entries.len(),
@@ -729,7 +729,7 @@ fn draw_file_info(self: *App, win: vaxis.Window) !vaxis.Window {
     return file_info_win;
 }
 
-fn draw_current_dir_list(self: *App, win: vaxis.Window, abs_file_path: vaxis.Window, file_information: vaxis.Window) !void {
+fn drawDirList(self: *App, win: vaxis.Window, abs_file_path: vaxis.Window, file_information: vaxis.Window) !void {
     const current_dir_list_win = win.child(.{
         .x_off = 0,
         .y_off = top_div + 1,
@@ -741,7 +741,7 @@ fn draw_current_dir_list(self: *App, win: vaxis.Window, abs_file_path: vaxis.Win
     self.last_known_height = current_dir_list_win.height;
 }
 
-fn draw_abs_file_path(self: *App, win: vaxis.Window) !vaxis.Window {
+fn drawAbsFilePath(self: *App, win: vaxis.Window) !vaxis.Window {
     const abs_file_path_bar = win.child(.{
         .x_off = 0,
         .y_off = 0,
@@ -753,7 +753,7 @@ fn draw_abs_file_path(self: *App, win: vaxis.Window) !vaxis.Window {
     return abs_file_path_bar;
 }
 
-fn draw_user_input(self: *App, win: vaxis.Window) !void {
+fn drawUserInput(self: *App, win: vaxis.Window) !void {
     const user_input_win = win.child(.{
         .x_off = 0,
         .y_off = top_div,
@@ -779,7 +779,7 @@ fn draw_user_input(self: *App, win: vaxis.Window) !void {
     }
 }
 
-fn draw_notification(self: *App, win: vaxis.Window) !void {
+fn drawNotification(self: *App, win: vaxis.Window) !void {
     if (self.notification.len > 0) {
         const notification_width_padding = 4;
         const notification_height_padding = 3;
