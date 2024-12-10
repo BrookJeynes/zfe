@@ -1,11 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
-
 const App = @import("app.zig");
-
 const vaxis = @import("vaxis");
-
 const config = &@import("./config.zig").config;
+
 pub const panic = vaxis.panic_handler;
 
 pub const std_options: std.Options = .{

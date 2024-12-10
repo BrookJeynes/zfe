@@ -1,19 +1,13 @@
 const std = @import("std");
 const builtin = @import("builtin");
-
-const Logger = @import("./log.zig").Logger;
 const environment = @import("./environment.zig");
 const Notification = @import("./notification.zig");
 const config = &@import("./config.zig").config;
 const List = @import("./list.zig").List;
 const Directories = @import("./directories.zig");
 const CircStack = @import("./circ_stack.zig").CircularStack;
-
 const zuid = @import("zuid");
-
 const vaxis = @import("vaxis");
-const TextInput = @import("vaxis").widgets.TextInput;
-const Cell = vaxis.Cell;
 const Key = vaxis.Key;
 
 pub const State = enum {
@@ -38,7 +32,7 @@ pub const Action = union(enum) {
 };
 
 const Event = union(enum) {
-    key_press: vaxis.Key,
+    key_press: Key,
     winsize: vaxis.Winsize,
 };
 
@@ -53,7 +47,6 @@ alloc: std.mem.Allocator,
 should_quit: bool,
 vx: vaxis.Vaxis = undefined,
 tty: vaxis.Tty = undefined,
-logger: Logger,
 state: State = .normal,
 actions: CircStack(Action, actions_len),
 
@@ -68,7 +61,7 @@ file_name_buf: [std.fs.max_path_bytes + 2]u8 = undefined, // +2 to accomodate fo
 directories: Directories,
 notification: Notification,
 
-text_input: TextInput,
+text_input: vaxis.widgets.TextInput,
 text_input_buf: [std.fs.max_path_bytes]u8 = undefined,
 
 image: ?vaxis.Image = null,
@@ -91,8 +84,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .vx = vx,
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
-        .logger = Logger{},
-        .text_input = TextInput.init(alloc, &vx.unicode),
+        .text_input = vaxis.widgets.TextInputTextInput.init(alloc, &vx.unicode),
         .notification = Notification{},
         .actions = CircStack(Action, actions_len).init(),
         .last_known_height = vx.window().height,
@@ -116,10 +108,9 @@ pub fn deinit(self: *App) void {
 }
 
 pub fn run(self: *App) !void {
-    self.logger.init();
     self.notification.init();
 
-    try self.directories.populate_entries("");
+    try self.directories.populateEntries("");
 
     var loop: vaxis.Loop(Event) = .{
         .vaxis = &self.vx,
@@ -136,10 +127,10 @@ pub fn run(self: *App) !void {
         while (loop.tryEvent()) |event| {
             switch (self.state) {
                 .normal => {
-                    try self.handle_normal_event(event, &loop);
+                    try self.handleNormalEvent(event, &loop);
                 },
                 .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
-                    try self.handle_input_event(event);
+                    try self.handleInputEvent(event);
                 },
             }
         }
@@ -157,7 +148,7 @@ pub fn inputToSlice(self: *App) []const u8 {
     return self.text_input.sliceToCursor(&self.text_input_buf);
 }
 
-pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !void {
+pub fn handleNormalEvent(self: *App, event: Event, loop: *vaxis.Loop(Event)) !void {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
@@ -171,12 +162,12 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     if (self.directories.dir.openDir("../", .{ .iterate = true })) |dir| {
                         self.directories.dir = dir;
 
-                        self.directories.cleanup();
+                        self.directories.clearEntries();
                         const fuzzy = self.inputToSlice();
-                        self.directories.populate_entries(fuzzy) catch |err| {
+                        self.directories.populateEntries(fuzzy) catch |err| {
                             switch (err) {
-                                error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                else => try self.notification.write_err(.UnknownError),
+                                error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                else => try self.notification.writeErr(.UnknownError),
                             }
                         };
 
@@ -186,13 +177,13 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                         }
                     } else |err| {
                         switch (err) {
-                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                            else => try self.notification.write_err(.UnknownError),
+                            error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                            else => try self.notification.writeErr(.UnknownError),
                         }
                     }
                 },
                 Key.enter, 'l', Key.right => {
-                    const entry = self.directories.get_selected() catch return;
+                    const entry = self.directories.getSelected() catch return;
 
                     switch (entry.kind) {
                         .directory => {
@@ -206,29 +197,29 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                     .offset = self.directories.entries.offset,
                                 });
 
-                                self.directories.cleanup();
+                                self.directories.clearEntries();
                                 const fuzzy = self.inputToSlice();
-                                self.directories.populate_entries(fuzzy) catch |err| {
+                                self.directories.populateEntries(fuzzy) catch |err| {
                                     switch (err) {
-                                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                        else => try self.notification.write_err(.UnknownError),
+                                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                        else => try self.notification.writeErr(.UnknownError),
                                     }
                                 };
                             } else |err| {
                                 switch (err) {
-                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                    else => try self.notification.write_err(.UnknownError),
+                                    error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                    else => try self.notification.writeErr(.UnknownError),
                                 }
                             }
                         },
                         .file => {
-                            if (environment.get_editor()) |editor| {
+                            if (environment.getEditor()) |editor| {
                                 try self.vx.exitAltScreen(self.tty.anyWriter());
                                 try self.vx.resetState(self.tty.anyWriter());
                                 loop.stop();
 
-                                environment.open_file(self.alloc, self.directories.dir, entry.name, editor) catch {
-                                    try self.notification.write_err(.UnableToOpenFile);
+                                environment.openFile(self.alloc, self.directories.dir, entry.name, editor) catch {
+                                    try self.notification.writeErr(.UnableToOpenFile);
                                 };
 
                                 try loop.start();
@@ -236,7 +227,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                 try self.vx.enableDetectedFeatures(self.tty.anyWriter());
                                 self.vx.queueRefresh();
                             } else {
-                                try self.notification.write_err(.EditorNotSet);
+                                try self.notification.writeErr(.EditorNotSet);
                             }
                         },
                         else => {},
@@ -249,14 +240,12 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                     self.directories.entries.previous(self.last_known_height);
                 },
                 'G' => {
-                    self.directories.entries.select_last(self.last_known_height);
+                    self.directories.entries.selectLast(self.last_known_height);
                 },
-                'g' => {
-                    self.directories.entries.select_first();
-                },
+                'g' => self.directories.entries.selectFirst(),
                 'D' => {
-                    const entry = self.directories.get_selected() catch {
-                        try self.notification.write_err(.UnableToDelete);
+                    const entry = self.directories.getSelected() catch {
+                        try self.notification.writeErr(.UnableToDelete);
                         return;
                     };
 
@@ -273,12 +262,12 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             self.alloc.free(prev_elem.delete.new);
                         }
 
-                        try self.notification.write_info(.Deleted);
-                        self.directories.remove_selected();
+                        try self.notification.writeInfo(.Deleted);
+                        self.directories.removeSelected();
                     } else |err| {
                         switch (err) {
-                            error.RenameAcrossMountPoints => try self.notification.write_err(.UnableToDeleteAcrossMountPoints),
-                            else => try self.notification.write_err(.UnableToDelete),
+                            error.RenameAcrossMountPoints => try self.notification.writeErr(.UnableToDeleteAcrossMountPoints),
+                            else => try self.notification.writeErr(.UnableToDelete),
                         }
                         self.alloc.free(old_path);
                         self.alloc.free(tmp_path);
@@ -286,22 +275,22 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                 },
                 'd' => {
                     self.text_input.clearAndFree();
-                    self.directories.cleanup();
-                    self.directories.populate_entries("") catch |err| {
+                    self.directories.clearEntries();
+                    self.directories.populateEntries("") catch |err| {
                         switch (err) {
-                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                            else => try self.notification.write_err(.UnknownError),
+                            error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                            else => try self.notification.writeErr(.UnknownError),
                         }
                     };
                     self.state = .new_dir;
                 },
                 '%' => {
                     self.text_input.clearAndFree();
-                    self.directories.cleanup();
-                    self.directories.populate_entries("") catch |err| {
+                    self.directories.clearEntries();
+                    self.directories.populateEntries("") catch |err| {
                         switch (err) {
-                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                            else => try self.notification.write_err(.UnknownError),
+                            error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                            else => try self.notification.writeErr(.UnknownError),
                         }
                     };
                     self.state = .new_file;
@@ -317,17 +306,17 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                     defer self.alloc.free(a.new);
                                     defer self.alloc.free(a.old);
 
-                                    self.directories.cleanup();
+                                    self.directories.clearEntries();
                                     const fuzzy = self.inputToSlice();
-                                    self.directories.populate_entries(fuzzy) catch |err| {
+                                    self.directories.populateEntries(fuzzy) catch |err| {
                                         switch (err) {
-                                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                            else => try self.notification.write_err(.UnknownError),
+                                            error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                            else => try self.notification.writeErr(.UnknownError),
                                         }
                                     };
-                                    try self.notification.write_info(.RestoredDelete);
+                                    try self.notification.writeInfo(.RestoredDelete);
                                 } else |_| {
-                                    try self.notification.write_err(.UnableToUndo);
+                                    try self.notification.writeErr(.UnableToUndo);
                                 }
                             },
                             .rename => |a| {
@@ -336,47 +325,43 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                                     defer self.alloc.free(a.new);
                                     defer self.alloc.free(a.old);
 
-                                    self.directories.cleanup();
+                                    self.directories.clearEntries();
                                     const fuzzy = self.inputToSlice();
-                                    self.directories.populate_entries(fuzzy) catch |err| {
+                                    self.directories.populateEntries(fuzzy) catch |err| {
                                         switch (err) {
-                                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                            else => try self.notification.write_err(.UnknownError),
+                                            error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                            else => try self.notification.writeErr(.UnknownError),
                                         }
                                     };
-                                    try self.notification.write_info(.RestoredRename);
+                                    try self.notification.writeInfo(.RestoredRename);
                                 } else |_| {
-                                    try self.notification.write_err(.UnableToUndo);
+                                    try self.notification.writeErr(.UnableToUndo);
                                 }
                             },
                         }
 
                         self.directories.entries.selected = selected;
                     } else {
-                        try self.notification.write_info(.EmptyUndo);
+                        try self.notification.writeInfo(.EmptyUndo);
                     }
                 },
-                '/' => {
-                    self.state = .fuzzy;
-                },
+                '/' => self.state = .fuzzy,
                 'R' => {
                     self.state = .rename;
 
-                    const entry = self.directories.get_selected() catch {
+                    const entry = self.directories.getSelected() catch {
                         self.state = .normal;
-                        try self.notification.write_err(.UnableToRename);
+                        try self.notification.writeErr(.UnableToRename);
                         return;
                     };
 
                     self.text_input.insertSliceAtCursor(entry.name) catch {
                         self.state = .normal;
-                        try self.notification.write_err(.UnableToRename);
+                        try self.notification.writeErr(.UnableToRename);
                         return;
                     };
                 },
-                'c' => {
-                    self.state = .change_dir;
-                },
+                'c' => self.state = .change_dir,
                 else => {},
             }
         },
@@ -384,7 +369,7 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
     }
 }
 
-pub fn handle_input_event(self: *App, event: Event) !void {
+pub fn handleInputEvent(self: *App, event: Event) !void {
     switch (event) {
         .key_press => |key| {
             if ((key.codepoint == 'c' and key.mods.ctrl)) {
@@ -396,11 +381,11 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                 Key.escape => {
                     switch (self.state) {
                         .fuzzy => {
-                            self.directories.cleanup();
-                            self.directories.populate_entries("") catch |err| {
+                            self.directories.clearEntries();
+                            self.directories.populateEntries("") catch |err| {
                                 switch (err) {
-                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                    else => try self.notification.write_err(.UnknownError),
+                                    error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                    else => try self.notification.writeErr(.UnknownError),
                                 }
                             };
                         },
@@ -416,45 +401,45 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                         .new_dir => {
                             const dir = self.inputToSlice();
                             if (self.directories.dir.makeDir(dir)) {
-                                try self.notification.write_info(.CreatedFolder);
+                                try self.notification.writeInfo(.CreatedFolder);
 
-                                self.directories.cleanup();
-                                self.directories.populate_entries("") catch |err| {
+                                self.directories.clearEntries();
+                                self.directories.populateEntries("") catch |err| {
                                     switch (err) {
-                                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                        else => try self.notification.write_err(.UnknownError),
+                                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                        else => try self.notification.writeErr(.UnknownError),
                                     }
                                 };
                             } else |err| {
                                 switch (err) {
-                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                    error.PathAlreadyExists => try self.notification.write_err(.ItemAlreadyExists),
-                                    else => try self.notification.write_err(.UnknownError),
+                                    error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                    error.PathAlreadyExists => try self.notification.writeErr(.ItemAlreadyExists),
+                                    else => try self.notification.writeErr(.UnknownError),
                                 }
                             }
                             self.text_input.clearAndFree();
                         },
                         .new_file => {
                             const file = self.inputToSlice();
-                            if (environment.file_exists(self.directories.dir, file)) {
-                                try self.notification.write_err(.ItemAlreadyExists);
+                            if (environment.fileExists(self.directories.dir, file)) {
+                                try self.notification.writeErr(.ItemAlreadyExists);
                             } else {
                                 if (self.directories.dir.createFile(file, .{})) |f| {
                                     f.close();
 
-                                    try self.notification.write_info(.CreatedFile);
+                                    try self.notification.writeInfo(.CreatedFile);
 
-                                    self.directories.cleanup();
-                                    self.directories.populate_entries("") catch |err| {
+                                    self.directories.clearEntries();
+                                    self.directories.populateEntries("") catch |err| {
                                         switch (err) {
-                                            error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                            else => try self.notification.write_err(.UnknownError),
+                                            error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                            else => try self.notification.writeErr(.UnknownError),
                                         }
                                     };
                                 } else |err| {
                                     switch (err) {
-                                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                        else => try self.notification.write_err(.UnknownError),
+                                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                        else => try self.notification.writeErr(.UnknownError),
                                     }
                                 }
                             }
@@ -464,16 +449,16 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                             var dir_prefix_buf: [std.fs.max_path_bytes]u8 = undefined;
                             const dir_prefix = try self.directories.dir.realpath(".", &dir_prefix_buf);
 
-                            const old = try self.directories.get_selected();
+                            const old = try self.directories.getSelected();
                             const new = self.inputToSlice();
 
-                            if (environment.file_exists(self.directories.dir, new)) {
-                                try self.notification.write_err(.ItemAlreadyExists);
+                            if (environment.fileExists(self.directories.dir, new)) {
+                                try self.notification.writeErr(.ItemAlreadyExists);
                             } else {
                                 self.directories.dir.rename(old.name, new) catch |err| switch (err) {
-                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                    error.PathAlreadyExists => try self.notification.write_err(.ItemAlreadyExists),
-                                    else => try self.notification.write_err(.UnknownError),
+                                    error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                    error.PathAlreadyExists => try self.notification.writeErr(.ItemAlreadyExists),
+                                    else => try self.notification.writeErr(.UnknownError),
                                 };
                                 if (self.actions.push(.{
                                     .rename = .{
@@ -485,13 +470,13 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                                     self.alloc.free(prev_elem.rename.new);
                                 }
 
-                                try self.notification.write_info(.Renamed);
+                                try self.notification.writeInfo(.Renamed);
 
-                                self.directories.cleanup();
-                                self.directories.populate_entries("") catch |err| {
+                                self.directories.clearEntries();
+                                self.directories.populateEntries("") catch |err| {
                                     switch (err) {
-                                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                        else => try self.notification.write_err(.UnknownError),
+                                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                        else => try self.notification.writeErr(.UnknownError),
                                     }
                                 };
                             }
@@ -502,22 +487,22 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                             if (self.directories.dir.openDir(path, .{ .iterate = true })) |dir| {
                                 self.directories.dir = dir;
 
-                                try self.notification.write_info(.ChangedDir);
+                                try self.notification.writeInfo(.ChangedDir);
 
-                                self.directories.cleanup();
-                                self.directories.populate_entries("") catch |err| {
+                                self.directories.clearEntries();
+                                self.directories.populateEntries("") catch |err| {
                                     switch (err) {
-                                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                        else => try self.notification.write_err(.UnknownError),
+                                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                        else => try self.notification.writeErr(.UnknownError),
                                     }
                                 };
                                 self.directories.history.reset();
                             } else |err| {
                                 switch (err) {
-                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                    error.FileNotFound => try self.notification.write_err(.IncorrectPath),
-                                    error.NotDir => try self.notification.write_err(.IncorrectPath),
-                                    else => try self.notification.write_err(.UnknownError),
+                                    error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                    error.FileNotFound => try self.notification.writeErr(.IncorrectPath),
+                                    error.NotDir => try self.notification.writeErr(.IncorrectPath),
+                                    else => try self.notification.writeErr(.UnknownError),
                                 }
                             }
 
@@ -533,12 +518,12 @@ pub fn handle_input_event(self: *App, event: Event) !void {
 
                     switch (self.state) {
                         .fuzzy => {
-                            self.directories.cleanup();
+                            self.directories.clearEntries();
                             const fuzzy = self.inputToSlice();
-                            self.directories.populate_entries(fuzzy) catch |err| {
+                            self.directories.populateEntries(fuzzy) catch |err| {
                                 switch (err) {
-                                    error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                                    else => try self.notification.write_err(.UnknownError),
+                                    error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                                    else => try self.notification.writeErr(.UnknownError),
                                 }
                             };
                         },
@@ -555,20 +540,20 @@ pub fn draw(self: *App) !void {
     const win = self.vx.window();
     win.clear();
 
-    const abs_file_path_bar = try self.draw_abs_file_path(win);
-    const file_info_bar = try self.draw_file_info(win);
-    try self.draw_current_dir_list(win, abs_file_path_bar, file_info_bar);
+    const abs_file_path_bar = try self.drawAbsFilePath(win);
+    const file_info_bar = try self.drawFileInfo(win);
+    try self.drawDirList(win, abs_file_path_bar, file_info_bar);
 
     if (config.preview_file == true) {
-        const file_name_bar = try self.draw_file_name(win);
-        try self.draw_preview(win, file_name_bar);
+        const file_name_bar = try self.drawFileName(win);
+        try self.drawFilePreview(win, file_name_bar);
     }
 
-    try self.draw_user_input(win);
-    try self.draw_notification(win);
+    try self.drawUserInput(win);
+    try self.drawNotification(win);
 }
 
-fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
+fn drawFileName(self: *App, win: vaxis.Window) !vaxis.Window {
     const file_name_bar = win.child(.{
         .x_off = win.width / 2,
         .y_off = 0,
@@ -576,7 +561,7 @@ fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
         .height = top_div,
     });
 
-    if (self.directories.get_selected()) |entry| {
+    if (self.directories.getSelected()) |entry| {
         const file_name = try std.fmt.bufPrint(&self.file_name_buf, "[{s}]", .{entry.name});
         _ = file_name_bar.print(&.{vaxis.Segment{
             .text = file_name,
@@ -587,7 +572,7 @@ fn draw_file_name(self: *App, win: vaxis.Window) !vaxis.Window {
     return file_name_bar;
 }
 
-fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !void {
+fn drawFilePreview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !void {
     const preview_win = win.child(.{
         .x_off = win.width / 2,
         .y_off = top_div + 1,
@@ -597,29 +582,29 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
 
     // Populate preview bar
     if (self.directories.entries.len() > 0 and config.preview_file == true) {
-        const entry = try self.directories.get_selected();
+        const entry = try self.directories.getSelected();
 
         @memcpy(&self.last_item_path_buf, &self.current_item_path_buf);
         self.last_item_path = self.last_item_path_buf[0..self.current_item_path.len];
-        self.current_item_path = try std.fmt.bufPrint(&self.current_item_path_buf, "{s}/{s}", .{ try self.directories.full_path("."), entry.name });
+        self.current_item_path = try std.fmt.bufPrint(&self.current_item_path_buf, "{s}/{s}", .{ try self.directories.fullPath("."), entry.name });
 
         switch (entry.kind) {
             .directory => {
-                self.directories.cleanup_sub();
-                if (self.directories.populate_sub_entries(entry.name)) {
-                    try self.directories.write_sub_entries(preview_win, config.styles.list_item);
+                self.directories.clearChildEntries();
+                if (self.directories.populateChildEntries(entry.name)) {
+                    try self.directories.writeChildEntries(preview_win, config.styles.list_item);
                 } else |err| {
                     switch (err) {
-                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                        else => try self.notification.write_err(.UnknownError),
+                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                        else => try self.notification.writeErr(.UnknownError),
                     }
                 }
             },
             .file => file: {
                 var file = self.directories.dir.openFile(entry.name, .{ .mode = .read_only }) catch |err| {
                     switch (err) {
-                        error.AccessDenied => try self.notification.write_err(.PermissionDenied),
-                        else => try self.notification.write_err(.UnknownError),
+                        error.AccessDenied => try self.notification.writeErr(.PermissionDenied),
+                        else => try self.notification.writeErr(.UnknownError),
                     }
 
                     _ = preview_win.print(&.{.{ .text = "No preview available." }}, .{});
@@ -708,11 +693,11 @@ fn draw_preview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !voi
     }
 }
 
-fn draw_file_info(self: *App, win: vaxis.Window) !vaxis.Window {
+fn drawFileInfo(self: *App, win: vaxis.Window) !vaxis.Window {
     const file_info = try std.fmt.bufPrint(&self.file_info_buf, "{d}/{d} {s} {s}", .{
         self.directories.entries.selected + 1,
         self.directories.entries.len(),
-        std.fs.path.extension(if (self.directories.get_selected()) |entry| entry.name else |_| ""),
+        std.fs.path.extension(if (self.directories.getSelected()) |entry| entry.name else |_| ""),
         // TODO: This should be the file size, not dir.
         std.fmt.fmtIntSizeDec((try self.directories.dir.metadata()).size()),
     });
@@ -729,31 +714,31 @@ fn draw_file_info(self: *App, win: vaxis.Window) !vaxis.Window {
     return file_info_win;
 }
 
-fn draw_current_dir_list(self: *App, win: vaxis.Window, abs_file_path: vaxis.Window, file_information: vaxis.Window) !void {
+fn drawDirList(self: *App, win: vaxis.Window, abs_file_path: vaxis.Window, file_information: vaxis.Window) !void {
     const current_dir_list_win = win.child(.{
         .x_off = 0,
         .y_off = top_div + 1,
         .width = if (config.preview_file) win.width / 2 else win.width,
         .height = win.height - (abs_file_path.height + file_information.height + top_div + bottom_div),
     });
-    try self.directories.write_entries(current_dir_list_win, config.styles.selected_list_item, config.styles.list_item);
+    try self.directories.writeEntries(current_dir_list_win, config.styles.selected_list_item, config.styles.list_item);
 
     self.last_known_height = current_dir_list_win.height;
 }
 
-fn draw_abs_file_path(self: *App, win: vaxis.Window) !vaxis.Window {
+fn drawAbsFilePath(self: *App, win: vaxis.Window) !vaxis.Window {
     const abs_file_path_bar = win.child(.{
         .x_off = 0,
         .y_off = 0,
         .width = win.width,
         .height = top_div,
     });
-    _ = abs_file_path_bar.print(&.{vaxis.Segment{ .text = try self.directories.full_path(".") }}, .{});
+    _ = abs_file_path_bar.print(&.{vaxis.Segment{ .text = try self.directories.fullPath(".") }}, .{});
 
     return abs_file_path_bar;
 }
 
-fn draw_user_input(self: *App, win: vaxis.Window) !void {
+fn drawUserInput(self: *App, win: vaxis.Window) !void {
     const user_input_win = win.child(.{
         .x_off = 0,
         .y_off = top_div,
@@ -775,7 +760,7 @@ fn draw_user_input(self: *App, win: vaxis.Window) !void {
     }
 }
 
-fn draw_notification(self: *App, win: vaxis.Window) !void {
+fn drawNotification(self: *App, win: vaxis.Window) !void {
     if (self.notification.len > 0) {
         if (std.time.timestamp() - self.notification.timer > Notification.notification_timeout) {
             self.notification.reset();
