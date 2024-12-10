@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Self = @This();
 
-// Seconds.
+/// Seconds.
 pub const notification_timeout = 3;
 
 const Style = enum {
@@ -10,7 +10,6 @@ const Style = enum {
     info,
 };
 
-/// Simplified construct
 const Error = enum {
     PermissionDenied,
     UnknownError,
@@ -43,6 +42,7 @@ len: usize = 0,
 buf: [1024]u8 = undefined,
 style: Style = Style.info,
 fbs: std.io.FixedBufferStream([]u8) = undefined,
+/// How long until the notification disappears in seconds.
 timer: i64 = 0,
 
 pub fn init(self: *Self) void {
@@ -57,7 +57,7 @@ pub fn write(self: *Self, text: []const u8, style: Style) !void {
     self.style = style;
 }
 
-pub fn write_err(self: *Self, err: Error) !void {
+pub fn writeErr(self: *Self, err: Error) !void {
     try switch (err) {
         .PermissionDenied => self.write("Permission denied.", .err),
         .UnknownError => self.write("An unknown error occurred.", .err),
@@ -76,7 +76,7 @@ pub fn write_err(self: *Self, err: Error) !void {
     };
 }
 
-pub fn write_info(self: *Self, info: Info) !void {
+pub fn writeInfo(self: *Self, info: Info) !void {
     try switch (info) {
         .CreatedFile => self.write("Successfully created file.", .info),
         .CreatedFolder => self.write("Successfully created folder.", .info),
