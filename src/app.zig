@@ -655,12 +655,12 @@ fn drawFilePreview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !
                         if (std.mem.eql(u8, self.last_item_path, self.current_item_path)) break :file;
 
                         var pdf = Pdf.open(self.alloc, self.current_item_path) catch {
-                            try self.notification.write_err(.UnableToOpenPdf);
+                            try self.notification.writeErr(.UnableToOpenPdf);
                             break :pdf_preview;
                         };
                         defer pdf.deinit();
                         pdf.draw(&self.vx, &self.tty, preview_win) catch {
-                            try self.notification.write_err(.UnableToRenderPdf);
+                            try self.notification.writeErr(.UnableToRenderPdf);
                             break :pdf_preview;
                         };
 
@@ -673,7 +673,7 @@ fn drawFilePreview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !
                         .argv = &[_][]const u8{ "pdftotext", "-f", "0", "-l", "5", self.current_item_path, "-" },
                         .cwd_dir = self.directories.dir,
                     }) catch {
-                        try self.notification.write_err(.UnableToRenderTextPdf);
+                        try self.notification.writeErr(.UnableToRenderTextPdf);
                         _ = preview_win.print(&.{.{
                             .text = "No preview available.",
                         }}, .{});
@@ -683,7 +683,7 @@ fn drawFilePreview(self: *App, win: vaxis.Window, file_name_win: vaxis.Window) !
                     defer self.alloc.free(output.stdout);
 
                     if (output.term.Exited != 0) {
-                        try self.notification.write_err(.UnableToRenderTextPdf);
+                        try self.notification.writeErr(.UnableToRenderTextPdf);
                         _ = preview_win.print(&.{.{
                             .text = "No preview available.",
                         }}, .{});
