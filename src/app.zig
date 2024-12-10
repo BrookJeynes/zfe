@@ -1,7 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Logger = @import("./log.zig").Logger;
 const environment = @import("./environment.zig");
 const Notification = @import("./notification.zig");
 const config = &@import("./config.zig").config;
@@ -53,7 +52,6 @@ alloc: std.mem.Allocator,
 should_quit: bool,
 vx: vaxis.Vaxis = undefined,
 tty: vaxis.Tty = undefined,
-logger: Logger,
 state: State = .normal,
 actions: CircStack(Action, actions_len),
 
@@ -91,7 +89,6 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .vx = vx,
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
-        .logger = Logger{},
         .text_input = TextInput.init(alloc, &vx.unicode),
         .notification = Notification{},
         .actions = CircStack(Action, actions_len).init(),
@@ -116,7 +113,6 @@ pub fn deinit(self: *App) void {
 }
 
 pub fn run(self: *App) !void {
-    self.logger.init();
     self.notification.init();
 
     try self.directories.populateEntries("");

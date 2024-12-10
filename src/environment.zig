@@ -1,8 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const log = &@import("./log.zig").log;
-
 pub fn getHomeDir() !?std.fs.Dir {
     return try std.fs.openDirAbsolute(std.posix.getenv("HOME") orelse {
         return null;
@@ -39,7 +37,7 @@ pub fn fileExists(dir: std.fs.Dir, path: []const u8) bool {
             switch (err) {
                 error.FileNotFound => break :blk false,
                 else => {
-                    log.info("{}", .{err});
+                    std.log.info("{}", .{err});
                     break :blk true;
                 },
             }
@@ -55,7 +53,7 @@ pub fn dirExists(dir: std.fs.Dir, path: []const u8) bool {
             switch (err) {
                 error.FileNotFound => break :blk false,
                 else => {
-                    log.info("{}", .{err});
+                    std.log.info("{}", .{err});
                     break :blk true;
                 },
             }
