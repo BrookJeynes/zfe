@@ -3,19 +3,19 @@ const builtin = @import("builtin");
 
 const log = &@import("./log.zig").log;
 
-pub fn get_home_dir() !?std.fs.Dir {
+pub fn getHomeDir() !?std.fs.Dir {
     return try std.fs.openDirAbsolute(std.posix.getenv("HOME") orelse {
         return null;
     }, .{ .iterate = true });
 }
 
-pub fn get_xdg_config_home_dir() !?std.fs.Dir {
+pub fn getXdgConfigHomeDir() !?std.fs.Dir {
     return try std.fs.openDirAbsolute(std.posix.getenv("XDG_CONFIG_HOME") orelse {
         return null;
     }, .{ .iterate = true });
 }
 
-pub fn get_editor() ?[]const u8 {
+pub fn getEditor() ?[]const u8 {
     const editor = std.posix.getenv("EDITOR");
     if (editor) |e| {
         if (std.mem.trim(u8, e, " ").len > 0) {
@@ -25,7 +25,7 @@ pub fn get_editor() ?[]const u8 {
     return null;
 }
 
-pub fn open_file(alloc: std.mem.Allocator, dir: std.fs.Dir, file: []const u8, editor: []const u8) !void {
+pub fn openFile(alloc: std.mem.Allocator, dir: std.fs.Dir, file: []const u8, editor: []const u8) !void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = try dir.realpath(file, &path_buf);
 
@@ -33,7 +33,7 @@ pub fn open_file(alloc: std.mem.Allocator, dir: std.fs.Dir, file: []const u8, ed
     _ = try child.spawnAndWait();
 }
 
-pub fn file_exists(dir: std.fs.Dir, path: []const u8) bool {
+pub fn fileExists(dir: std.fs.Dir, path: []const u8) bool {
     const result = blk: {
         _ = dir.openFile(path, .{}) catch |err| {
             switch (err) {
@@ -49,7 +49,7 @@ pub fn file_exists(dir: std.fs.Dir, path: []const u8) bool {
     return result;
 }
 
-pub fn dir_exists(dir: std.fs.Dir, path: []const u8) bool {
+pub fn dirExists(dir: std.fs.Dir, path: []const u8) bool {
     const result = blk: {
         _ = dir.openDir(path, .{}) catch |err| {
             switch (err) {

@@ -222,12 +222,12 @@ pub fn handle_normal_event(self: *App, event: Event, loop: *vaxis.Loop(Event)) !
                             }
                         },
                         .file => {
-                            if (environment.get_editor()) |editor| {
+                            if (environment.getEditor()) |editor| {
                                 try self.vx.exitAltScreen(self.tty.anyWriter());
                                 try self.vx.resetState(self.tty.anyWriter());
                                 loop.stop();
 
-                                environment.open_file(self.alloc, self.directories.dir, entry.name, editor) catch {
+                                environment.openFile(self.alloc, self.directories.dir, entry.name, editor) catch {
                                     try self.notification.writeErr(.UnableToOpenFile);
                                 };
 
@@ -436,7 +436,7 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                         },
                         .new_file => {
                             const file = self.inputToSlice();
-                            if (environment.file_exists(self.directories.dir, file)) {
+                            if (environment.fileExists(self.directories.dir, file)) {
                                 try self.notification.writeErr(.ItemAlreadyExists);
                             } else {
                                 if (self.directories.dir.createFile(file, .{})) |f| {
@@ -467,7 +467,7 @@ pub fn handle_input_event(self: *App, event: Event) !void {
                             const old = try self.directories.get_selected();
                             const new = self.inputToSlice();
 
-                            if (environment.file_exists(self.directories.dir, new)) {
+                            if (environment.fileExists(self.directories.dir, new)) {
                                 try self.notification.writeErr(.ItemAlreadyExists);
                             } else {
                                 self.directories.dir.rename(old.name, new) catch |err| switch (err) {

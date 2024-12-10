@@ -16,11 +16,11 @@ const Config = struct {
 
         var config_home: std.fs.Dir = undefined;
         defer config_home.close();
-        if (try environment.get_xdg_config_home_dir()) |path| {
+        if (try environment.getXdgConfigHomeDir()) |path| {
             config_home = path;
             config_path = try std.fs.path.join(alloc, &.{ "zfe", "config.json" });
         } else {
-            if (try environment.get_home_dir()) |path| {
+            if (try environment.getHomeDir()) |path| {
                 config_home = path;
                 config_path = try std.fs.path.join(alloc, &.{ ".config", "zfe", "config.json" });
             } else {
@@ -28,7 +28,7 @@ const Config = struct {
             }
         }
 
-        if (!environment.file_exists(config_home, config_path)) {
+        if (!environment.fileExists(config_home, config_path)) {
             return error.ConfigNotFound;
         }
 
