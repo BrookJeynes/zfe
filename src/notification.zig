@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Self = @This();
 
-// Seconds.
+/// Seconds.
 pub const notification_timeout = 3;
 
 const Style = enum {
@@ -10,7 +10,6 @@ const Style = enum {
     info,
 };
 
-/// Simplified construct
 const Error = enum {
     PermissionDenied,
     UnknownError,
@@ -40,6 +39,7 @@ len: usize = 0,
 buf: [1024]u8 = undefined,
 style: Style = Style.info,
 fbs: std.io.FixedBufferStream([]u8) = undefined,
+/// How long until the notification disappears in seconds.
 timer: i64 = 0,
 
 pub fn init(self: *Self) void {

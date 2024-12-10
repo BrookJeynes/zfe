@@ -763,10 +763,6 @@ fn draw_user_input(self: *App, win: vaxis.Window) !void {
 
     switch (self.state) {
         .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
-            // TODO: Investigate why removing this causes a segfault when
-            // entering user input while a notification is being rendered.
-            self.notification.reset();
-
             self.text_input.draw(user_input_win);
         },
         .normal => {
@@ -781,6 +777,11 @@ fn draw_user_input(self: *App, win: vaxis.Window) !void {
 
 fn draw_notification(self: *App, win: vaxis.Window) !void {
     if (self.notification.len > 0) {
+        if (std.time.timestamp() - self.notification.timer > Notification.notification_timeout) {
+            self.notification.reset();
+            return;
+        }
+
         const notification_width_padding = 4;
         const notification_height_padding = 3;
         const notification_screen_pos_padding = 10;
@@ -798,10 +799,6 @@ fn draw_notification(self: *App, win: vaxis.Window) !void {
             .border = .{ .where = .all },
         });
 
-        if (self.text_input.buf.realLength() > 0) {
-            self.text_input.clearAndFree();
-        }
-
         notification_win.fill(.{ .style = config.styles.notification_box });
         _ = notification_win.printSegment(.{
             .text = self.notification.slice(),
@@ -810,9 +807,5 @@ fn draw_notification(self: *App, win: vaxis.Window) !void {
                 .err => config.styles.error_bar,
             },
         }, .{ .wrap = .word });
-
-        if (std.time.timestamp() - self.notification.timer > Notification.notification_timeout) {
-            self.notification.reset();
-        }
     }
 }
