@@ -21,7 +21,7 @@ file_contents: [4096]u8 = undefined,
 pdf_contents: ?[]u8 = null,
 entries: List(std.fs.Dir.Entry),
 history: CircStack(History, history_len),
-sub_entries: List([]const u8),
+child_entries: List([]const u8),
 searcher: fuzzig.Ascii,
 
 pub fn init(alloc: std.mem.Allocator) !Self {
@@ -30,7 +30,7 @@ pub fn init(alloc: std.mem.Allocator) !Self {
         .dir = try std.fs.cwd().openDir(".", .{ .iterate = true }),
         .entries = List(std.fs.Dir.Entry).init(alloc),
         .history = CircStack(History, history_len).init(),
-        .sub_entries = List([]const u8).init(alloc),
+        .child_entries = List([]const u8).init(alloc),
         .searcher = try fuzzig.Ascii.init(
             alloc,
             std.fs.max_path_bytes,
@@ -41,11 +41,11 @@ pub fn init(alloc: std.mem.Allocator) !Self {
 }
 
 pub fn deinit(self: *Self) void {
-    self.cleanup();
-    self.cleanup_sub();
+    self.clearEntries();
+    self.clearChildEntries();
 
     self.entries.deinit();
-    self.sub_entries.deinit();
+    self.child_entries.deinit();
 
     self.dir.close();
     self.searcher.deinit();
@@ -53,22 +53,22 @@ pub fn deinit(self: *Self) void {
     if (self.pdf_contents) |contents| self.alloc.free(contents);
 }
 
-pub fn get_selected(self: *Self) !std.fs.Dir.Entry {
+pub fn getSelected(self: *Self) !std.fs.Dir.Entry {
     return self.entries.getSelected();
 }
 
 /// Asserts there is a selected item.
-pub fn remove_selected(self: *Self) void {
-    const entry = self.get_selected() catch return;
+pub fn removeSelected(self: *Self) void {
+    const entry = self.getSelected() catch return std.debug.assert(false);
     self.alloc.free(entry.name);
     _ = self.entries.items.orderedRemove(self.entries.selected);
 }
 
-pub fn full_path(self: *Self, relative_path: []const u8) ![]const u8 {
+pub fn fullPath(self: *Self, relative_path: []const u8) ![]const u8 {
     return try self.dir.realpath(relative_path, &self.path_buf);
 }
 
-pub fn populate_sub_entries(
+pub fn populateChildEntries(
     self: *Self,
     relative_path: []const u8,
 ) !void {
@@ -77,20 +77,20 @@ pub fn populate_sub_entries(
 
     var it = dir.iterate();
     while (try it.next()) |entry| {
-        try self.sub_entries.append(try self.alloc.dupe(u8, entry.name));
+        try self.child_entries.append(try self.alloc.dupe(u8, entry.name));
     }
 
     if (config.sort_dirs == true) {
-        std.mem.sort([]const u8, self.sub_entries.all(), {}, sort_sub_entry);
+        std.mem.sort([]const u8, self.child_entries.all(), {}, sortChildEntry);
     }
 }
 
-pub fn write_sub_entries(
+pub fn writeChildEntries(
     self: *Self,
     window: vaxis.Window,
     style: vaxis.Style,
 ) !void {
-    for (self.sub_entries.all(), 0..) |item, i| {
+    for (self.child_entries.all(), 0..) |item, i| {
         if (std.mem.startsWith(u8, item, ".") and config.show_hidden == false) {
             continue;
         }
@@ -104,7 +104,7 @@ pub fn write_sub_entries(
     }
 }
 
-pub fn populate_entries(self: *Self, fuzzy_search: []const u8) !void {
+pub fn populateEntries(self: *Self, fuzzy_search: []const u8) !void {
     var it = self.dir.iterate();
     while (try it.next()) |entry| {
         const score = self.searcher.score(entry.name, fuzzy_search) orelse 0;
@@ -119,11 +119,11 @@ pub fn populate_entries(self: *Self, fuzzy_search: []const u8) !void {
     }
 
     if (config.sort_dirs == true) {
-        std.mem.sort(std.fs.Dir.Entry, self.entries.all(), {}, sort_entry);
+        std.mem.sort(std.fs.Dir.Entry, self.entries.all(), {}, sortEntry);
     }
 }
 
-pub fn write_entries(
+pub fn writeEntries(
     self: *Self,
     window: vaxis.Window,
     selected_list_item_style: vaxis.Style,
@@ -153,24 +153,24 @@ pub fn write_entries(
     }
 }
 
-fn sort_entry(_: void, lhs: std.fs.Dir.Entry, rhs: std.fs.Dir.Entry) bool {
+fn sortEntry(_: void, lhs: std.fs.Dir.Entry, rhs: std.fs.Dir.Entry) bool {
     return std.mem.lessThan(u8, lhs.name, rhs.name);
 }
 
-fn sort_sub_entry(_: void, lhs: []const u8, rhs: []const u8) bool {
+fn sortChildEntry(_: void, lhs: []const u8, rhs: []const u8) bool {
     return std.mem.lessThan(u8, lhs, rhs);
 }
 
-pub fn cleanup(self: *Self) void {
+pub fn clearEntries(self: *Self) void {
     for (self.entries.all()) |entry| {
         self.entries.alloc.free(entry.name);
     }
     self.entries.clear();
 }
 
-pub fn cleanup_sub(self: *Self) void {
-    for (self.sub_entries.all()) |entry| {
-        self.sub_entries.alloc.free(entry);
+pub fn clearChildEntries(self: *Self) void {
+    for (self.child_entries.all()) |entry| {
+        self.child_entries.alloc.free(entry);
     }
-    self.sub_entries.clear();
+    self.child_entries.clear();
 }
