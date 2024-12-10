@@ -242,9 +242,7 @@ pub fn handleNormalEvent(self: *App, event: Event, loop: *vaxis.Loop(Event)) !vo
                 'G' => {
                     self.directories.entries.selectLast(self.last_known_height);
                 },
-                'g' => {
-                    self.directories.entries.selectFirst();
-                },
+                'g' => self.directories.entries.selectFirst(),
                 'D' => {
                     const entry = self.directories.getSelected() catch {
                         try self.notification.writeErr(.UnableToDelete);
@@ -347,9 +345,7 @@ pub fn handleNormalEvent(self: *App, event: Event, loop: *vaxis.Loop(Event)) !vo
                         try self.notification.writeInfo(.EmptyUndo);
                     }
                 },
-                '/' => {
-                    self.state = .fuzzy;
-                },
+                '/' => self.state = .fuzzy,
                 'R' => {
                     self.state = .rename;
 
@@ -365,9 +361,7 @@ pub fn handleNormalEvent(self: *App, event: Event, loop: *vaxis.Loop(Event)) !vo
                         return;
                     };
                 },
-                'c' => {
-                    self.state = .change_dir;
-                },
+                'c' => self.state = .change_dir,
                 else => {},
             }
         },
