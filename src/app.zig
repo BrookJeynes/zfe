@@ -84,7 +84,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .vx = vx,
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
-        .text_input = vaxis.widgets.TextInputTextInput.init(alloc, &vx.unicode),
+        .text_input = vaxis.widgets.TextInput.init(alloc, &vx.unicode),
         .notification = Notification{},
         .actions = CircStack(Action, actions_len).init(),
         .last_known_height = vx.window().height,
