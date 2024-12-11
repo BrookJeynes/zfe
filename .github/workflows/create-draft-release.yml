@@ -41,7 +41,7 @@ jobs:
                    zlib1g-dev
 
       - name: Set up Zig
-        uses: primehub/zig-action@v1
+        uses: korandoru/setup-zig@v1
         with:
           version: "0.13.0"
 
