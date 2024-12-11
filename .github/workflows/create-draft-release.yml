@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 env:
+  # https://github.com/cli/cli/issues/9514#issuecomment-2311517523
   GH_TOKEN: ${{ secrets.TOKEN }}
 
 jobs:
