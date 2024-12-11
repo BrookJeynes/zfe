@@ -51,7 +51,7 @@ jobs:
 
       - name: Build application
         run: |
-          zig build -Dtarget=${{ matrix.target.cpu_arch }}-${{ matrix.target.os_tag }} -Doptimize=ReleaseSafe
+          zig build -Dcpu=baseline -Doptimize=ReleaseSafe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
