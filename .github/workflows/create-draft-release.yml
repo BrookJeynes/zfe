@@ -1,0 +1,75 @@
+name: Create draft release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        target:
+          - { cpu_arch: aarch64, os_tag: linux }
+          - { cpu_arch: x86_64, os_tag: linux }
+          - { cpu_arch: aarch64, os_tag: macos }
+          - { cpu_arch: x86_64, os_tag: macos }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (MacOS)
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          brew install mupdf
+
+      - name: Install dependencies (Linux)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt-get update
+          sudo apt install \
+                   libmupdf-dev \
+                   libharfbuzz-dev \
+                   libfreetype6-dev \
+                   libjbig2dec0-dev \
+                   libjpeg-dev \
+                   libopenjp2-7-dev \
+                   libgumbo-dev \
+                   libmujs-dev \
+                   zlib1g-dev
+
+      - name: Set up Zig
+        uses: primehub/zig-action@v1
+        with:
+          version: "0.13.0"
+
+      - name: Build application
+        run: |
+          zig build -Dtarget=${{ matrix.target.cpu_arch }}-${{ matrix.target.os_tag }} -Doptimize=ReleaseSafe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target.cpu_arch }}-${{ matrix.target.os_tag }}
+          path: zig-out/bin
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create draft release
+        uses: actions/create-release@v1
+        with:
+          tag_name: v${{ github.ref_name }}
+          release_name: Release v${{ github.ref_name }}
+          draft: true
+          files: |
+            artifacts/*
