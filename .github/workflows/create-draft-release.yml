@@ -3,6 +3,9 @@ name: Create draft release
 on:
   workflow_dispatch:
 
+env:
+  GH_TOKEN: ${{ secrets.TOKEN }}
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -67,6 +70,11 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: artifacts
+
+      - name: gh log
+        run: |
+          gh --version
+          gh auth status
 
       - name: Create release
         run: |
