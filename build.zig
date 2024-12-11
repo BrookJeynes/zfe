@@ -84,7 +84,7 @@ fn addMupdfDeps(exe: *std.Build.Step.Compile, target: std.Target) void {
             "jpeg",     "openjp2",
             "gumbo",    "mujs",
         };
-        for (linux_libs) |lib| exe.linkSystemLibrary(lib);
+        for (linux_libs) |lib| exe.linkSystemLibrary2(lib, .{ .preferred_link_mode = .static });
     }
     exe.linkSystemLibrary("mupdf");
     exe.linkSystemLibrary("z");
