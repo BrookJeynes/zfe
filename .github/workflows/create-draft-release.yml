@@ -65,11 +65,17 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create draft release
-        uses: actions/create-release@v1
-        with:
-          tag_name: v${{ github.ref_name }}
-          release_name: Release v${{ github.ref_name }}
-          draft: true
-          files: |
-            artifacts/*
+      - name: Create release
+        run: |
+          gh release create $NEW_TAG \
+            --title "Release $NEW_TAG" \
+            --generate-notes --notes-start-tag $FROM_TAG \
+            --prerelease=$IS_PRERELEASE \
+            --latest=$IS_PROD_RELEASE
+
+          gh release create ${{ github.ref_name }} artifacts/* \
+            --title "Release ${{ github.ref_name }}" \
+            --notes "Automated release with build artifacts." \
+            --draft
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
