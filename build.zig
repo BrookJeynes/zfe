@@ -86,7 +86,7 @@ fn addMupdfDeps(exe: *std.Build.Step.Compile, target: std.Target) void {
         };
         for (linux_libs) |lib| exe.linkSystemLibrary2(lib, .{ .preferred_link_mode = .static });
     }
-    exe.linkSystemLibrary("mupdf");
-    exe.linkSystemLibrary("z");
+    exe.linkSystemLibrary2("mupdf", .{ .preferred_link_mode = .static });
+    exe.linkSystemLibrary2("z", .{ .preferred_link_mode = .static });
     exe.linkLibC();
 }
