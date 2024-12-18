@@ -8,6 +8,7 @@ pub const notification_timeout = 3;
 const Style = enum {
     err,
     info,
+    warn,
 };
 
 const Error = enum {
@@ -22,6 +23,8 @@ const Error = enum {
     ItemAlreadyExists,
     UnableToRename,
     IncorrectPath,
+    ConfigSyntaxError,
+    ConfigUnknownError,
 };
 
 const Info = enum {
@@ -35,7 +38,8 @@ const Info = enum {
     ChangedDir,
 };
 
-len: usize = 0,
+const Warn = enum { DeprecatedConfigPath };
+
 buf: [1024]u8 = undefined,
 style: Style = Style.info,
 fbs: std.io.FixedBufferStream([]u8) = undefined,
@@ -48,9 +52,8 @@ pub fn init(self: *Self) void {
 
 pub fn write(self: *Self, text: []const u8, style: Style) !void {
     self.fbs.reset();
-    self.len = try self.fbs.write(text);
+    _ = try self.fbs.write(text);
     self.timer = std.time.timestamp();
-
     self.style = style;
 }
 
@@ -67,6 +70,8 @@ pub fn writeErr(self: *Self, err: Error) !void {
         .IncorrectPath => self.write("Unable to find path.", .err),
         .EditorNotSet => self.write("$EDITOR is not set.", .err),
         .UnsupportedImageFormat => self.write("Unsupported image format.", .err),
+        .ConfigSyntaxError => self.write("Could not read config due to a syntax error.", .err),
+        .ConfigUnknownError => self.write("Could not read config due to an unknown error.", .err),
     };
 }
 
@@ -83,12 +88,17 @@ pub fn writeInfo(self: *Self, info: Info) !void {
     };
 }
 
+pub fn writeWarn(self: *Self, warning: Warn) !void {
+    try switch (warning) {
+        .DeprecatedConfigPath => self.write("You are using a deprecated config path. Please move your config to either `$XDG_CONFIG_HOME/zfe` or `$HOME/.zfe`", .warn),
+    };
+}
+
 pub fn reset(self: *Self) void {
     self.fbs.reset();
-    self.len = 0;
     self.style = Style.info;
 }
 
 pub fn slice(self: *Self) []const u8 {
-    return self.buf[0..self.len];
+    return self.fbs.getWritten();
 }

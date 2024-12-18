@@ -23,7 +23,7 @@ appropriate version or build locally via `zig build -Doptimize=ReleaseSafe`.
 
 ## Configuration
 Configure `zfe` by editing the external configuration file located at either:
-- `$HOME/.config/zfe/config.json`
+- `$HOME/.zfe/config.json`
 - `$XDG_CONFIG_HOME/zfe/config.json`.
 
 An example config file can be found [here](https://github.com/BrookJeynes/zfe/blob/main/example-config.json).

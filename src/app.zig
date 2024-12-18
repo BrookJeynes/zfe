@@ -78,6 +78,9 @@ pub fn init(alloc: std.mem.Allocator) !App {
         },
     });
 
+    var notification = Notification{};
+    notification.init();
+
     return App{
         .alloc = alloc,
         .should_quit = false,
@@ -85,7 +88,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
         .text_input = vaxis.widgets.TextInput.init(alloc, &vx.unicode),
-        .notification = Notification{},
+        .notification = notification,
         .actions = CircStack(Action, actions_len).init(),
         .last_known_height = vx.window().height,
     };
@@ -108,8 +111,6 @@ pub fn deinit(self: *App) void {
 }
 
 pub fn run(self: *App) !void {
-    self.notification.init();
-
     try self.directories.populateEntries("");
 
     var loop: vaxis.Loop(Event) = .{
@@ -761,7 +762,7 @@ fn drawUserInput(self: *App, win: vaxis.Window) !void {
 }
 
 fn drawNotification(self: *App, win: vaxis.Window) !void {
-    if (self.notification.len > 0) {
+    if (self.notification.fbs.pos > 0) {
         if (std.time.timestamp() - self.notification.timer > Notification.notification_timeout) {
             self.notification.reset();
             return;
@@ -772,25 +773,26 @@ fn drawNotification(self: *App, win: vaxis.Window) !void {
         const notification_screen_pos_padding = 10;
 
         const max_notification_width = win.width / 4;
-        const notification_width = self.notification.len + notification_width_padding;
+        const notification_width = self.notification.fbs.pos + notification_width_padding;
         const abs_notification_width = if (notification_width > max_notification_width) max_notification_width else notification_width;
-        const notification_height = try std.math.divCeil(usize, self.notification.len, abs_notification_width) + notification_height_padding;
+        const notification_height = try std.math.divCeil(usize, self.notification.fbs.pos, abs_notification_width) + notification_height_padding;
 
         const notification_win = win.child(.{
             .x_off = @intCast(win.width - (abs_notification_width + notification_screen_pos_padding)),
             .y_off = top_div,
             .width = @intCast(abs_notification_width),
             .height = @intCast(notification_height),
-            .border = .{ .where = .all },
+            .border = .{ .where = .all, .style = switch (self.notification.style) {
+                .info => config.styles.info_bar,
+                .err => config.styles.error_bar,
+                .warn => config.styles.warning_bar,
+            } },
         });
 
         notification_win.fill(.{ .style = config.styles.notification_box });
         _ = notification_win.printSegment(.{
             .text = self.notification.slice(),
-            .style = switch (self.notification.style) {
-                .info => config.styles.info_bar,
-                .err => config.styles.error_bar,
-            },
+            .style = config.styles.notification_box,
         }, .{ .wrap = .word });
     }
 }

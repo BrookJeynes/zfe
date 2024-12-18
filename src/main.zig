@@ -23,24 +23,19 @@ pub fn main() !void {
     }
     const alloc = gpa.allocator();
 
-    config.parse(alloc) catch |err| switch (err) {
-        error.ConfigNotFound => {},
-        error.MissingConfigHomeEnvironmentVariable => {
-            std.log.err("Could not read config due to $HOME or $XDG_CONFIG_HOME not being set.", .{});
-            return;
-        },
+    var app = try App.init(alloc);
+    defer app.deinit();
+
+    config.parse(alloc, &app.notification) catch |err| switch (err) {
         error.SyntaxError => {
-            std.log.err("Could not read config due to a syntax error.", .{});
+            try app.notification.writeErr(.ConfigSyntaxError);
             return;
         },
         else => {
-            std.log.err("Could not read config due to an unknown error.", .{});
+            try app.notification.writeErr(.ConfigUnknownError);
             return;
         },
     };
-
-    var app = try App.init(alloc);
-    defer app.deinit();
 
     try app.run();
 }
