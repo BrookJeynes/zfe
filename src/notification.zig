@@ -92,3 +92,12 @@ pub fn reset(self: *Self) void {
 pub fn slice(self: *Self) []const u8 {
     return self.buf[0..self.len];
 }
+
+pub fn clearIfEnded(self: *Self) bool {
+    if (std.time.timestamp() - self.timer > notification_timeout) {
+        self.reset();
+        return true;
+    }
+
+    return false;
+}

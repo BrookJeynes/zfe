@@ -33,7 +33,7 @@ pub fn List(comptime T: type) type {
             self.offset = 0;
         }
 
-        pub fn get(self: *Self, index: usize) !T {
+        pub fn get(self: Self, index: usize) !T {
             if (index + 1 > self.len()) {
                 return error.OutOfBounds;
             }
@@ -53,11 +53,11 @@ pub fn List(comptime T: type) type {
             return error.EmptyList;
         }
 
-        pub fn all(self: *Self) []T {
+        pub fn all(self: Self) []T {
             return self.items.items;
         }
 
-        pub fn len(self: *Self) usize {
+        pub fn len(self: Self) usize {
             return self.items.items.len;
         }
 

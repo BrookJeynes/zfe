@@ -22,7 +22,10 @@ const Config = struct {
         } else {
             if (try environment.getHomeDir()) |path| {
                 config_home = path;
-                config_path = try std.fs.path.join(alloc, &.{ ".config", "zfe", "config.json" });
+                config_path = try std.fs.path.join(
+                    alloc,
+                    &.{ ".config", "zfe", "config.json" },
+                );
             } else {
                 return error.MissingConfigHomeEnvironmentVariable;
             }
