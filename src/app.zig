@@ -69,6 +69,9 @@ pub fn init(alloc: std.mem.Allocator) !App {
         },
     });
 
+    var notification = Notification{};
+    notification.init();
+
     return App{
         .alloc = alloc,
         .should_quit = false,
@@ -76,7 +79,7 @@ pub fn init(alloc: std.mem.Allocator) !App {
         .tty = try vaxis.Tty.init(),
         .directories = try Directories.init(alloc),
         .text_input = vaxis.widgets.TextInput.init(alloc, &vx.unicode),
-        .notification = Notification{},
+        .notification = notification,
         .actions = CircStack(Action, actions_len).init(),
         .last_known_height = vx.window().height,
     };
@@ -99,9 +102,7 @@ pub fn deinit(self: *App) void {
 }
 
 pub fn run(self: *App) !void {
-    self.notification.init();
     var drawer = Drawer{};
-
     try self.directories.populateEntries("");
 
     var loop: vaxis.Loop(Event) = .{
