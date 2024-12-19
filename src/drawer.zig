@@ -322,7 +322,7 @@ fn drawNotification(
     notification: *Notification,
     win: vaxis.Window,
 ) !void {
-    if (notification.len == 0) return;
+    if (notification.len() == 0) return;
     if (notification.clearIfEnded()) return;
 
     const width_padding = 4;
@@ -330,24 +330,25 @@ fn drawNotification(
     const screen_pos_padding = 10;
 
     const max_width = win.width / 4;
-    const width = notification.len + width_padding;
+    const width = notification.len() + width_padding;
     const calculated_width = if (width > max_width) max_width else width;
-    const height = try std.math.divCeil(usize, notification.len, calculated_width) + height_padding;
+    const height = try std.math.divCeil(usize, notification.len(), calculated_width) + height_padding;
 
     const notification_win = win.child(.{
         .x_off = @intCast(win.width - (calculated_width + screen_pos_padding)),
         .y_off = top_div,
         .width = @intCast(calculated_width),
         .height = @intCast(height),
-        .border = .{ .where = .all },
+        .border = .{ .where = .all, .style = switch (notification.style) {
+            .info => config.styles.info_bar,
+            .err => config.styles.error_bar,
+            .warn => config.styles.warning_bar,
+        } },
     });
 
     notification_win.fill(.{ .style = config.styles.notification_box });
     _ = notification_win.printSegment(.{
         .text = notification.slice(),
-        .style = switch (notification.style) {
-            .info => config.styles.info_bar,
-            .err => config.styles.error_bar,
-        },
+        .style = config.styles.notification_box,
     }, .{ .wrap = .word });
 }

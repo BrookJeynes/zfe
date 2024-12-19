@@ -48,6 +48,7 @@ timer: i64 = 0,
 
 pub fn init(self: *Self) void {
     self.fbs = std.io.fixedBufferStream(&self.buf);
+    self.timer = std.time.timestamp();
 }
 
 pub fn write(self: *Self, text: []const u8, style: Style) !void {
@@ -110,4 +111,8 @@ pub fn clearIfEnded(self: *Self) bool {
     }
 
     return false;
+}
+
+pub fn len(self: Self) usize {
+    return self.fbs.pos;
 }
