@@ -81,7 +81,7 @@ fn drawFilePreview(
         .height = win.height - (file_name_win.height + top_div + bottom_div),
     });
 
-    if (app.directories.entries.len() == 0 and !config.preview_file) return;
+    if (app.directories.entries.len() == 0 or !config.preview_file) return;
 
     const entry = try app.directories.getSelected();
 
