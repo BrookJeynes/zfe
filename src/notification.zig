@@ -48,6 +48,7 @@ timer: i64 = 0,
 
 pub fn init(self: *Self) void {
     self.fbs = std.io.fixedBufferStream(&self.buf);
+    self.timer = std.time.timestamp();
 }
 
 pub fn write(self: *Self, text: []const u8, style: Style) !void {
@@ -101,4 +102,17 @@ pub fn reset(self: *Self) void {
 
 pub fn slice(self: *Self) []const u8 {
     return self.fbs.getWritten();
+}
+
+pub fn clearIfEnded(self: *Self) bool {
+    if (std.time.timestamp() - self.timer > notification_timeout) {
+        self.reset();
+        return true;
+    }
+
+    return false;
+}
+
+pub fn len(self: Self) usize {
+    return self.fbs.pos;
 }

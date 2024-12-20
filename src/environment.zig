@@ -23,7 +23,12 @@ pub fn getEditor() ?[]const u8 {
     return null;
 }
 
-pub fn openFile(alloc: std.mem.Allocator, dir: std.fs.Dir, file: []const u8, editor: []const u8) !void {
+pub fn openFile(
+    alloc: std.mem.Allocator,
+    dir: std.fs.Dir,
+    file: []const u8,
+    editor: []const u8,
+) !void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const path = try dir.realpath(file, &path_buf);
 
