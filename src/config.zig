@@ -4,6 +4,8 @@ const environment = @import("./environment.zig");
 const vaxis = @import("vaxis");
 const Notification = @import("./notification.zig");
 
+pub const ParseRes = struct { deprecated: bool };
+
 const Config = struct {
     show_hidden: bool = true,
     sort_dirs: bool = true,
@@ -11,7 +13,8 @@ const Config = struct {
     preview_file: bool = true,
     styles: Styles,
 
-    pub fn parse(self: *Config, alloc: std.mem.Allocator, notification: *Notification) !void {
+    pub fn parse(self: *Config, alloc: std.mem.Allocator) !ParseRes {
+        var deprecated = false;
         var config_location: struct {
             home_dir: std.fs.Dir,
             path: []const u8,
@@ -40,7 +43,7 @@ const Config = struct {
 
                 const deprecated_path = ".config" ++ std.fs.path.sep_str ++ "zfe" ++ std.fs.path.sep_str ++ "config.json";
                 if (environment.fileExists(home_dir, deprecated_path)) {
-                    try notification.writeWarn(.DeprecatedConfigPath);
+                    deprecated = true;
                     break :lbl .{
                         .home_dir = home_dir,
                         .path = deprecated_path,
@@ -51,7 +54,7 @@ const Config = struct {
                 dir.close();
             }
 
-            return;
+            return .{ .deprecated = deprecated };
         };
         defer config_location.home_dir.close();
 
@@ -65,6 +68,7 @@ const Config = struct {
         defer parsed_config.deinit();
 
         self.* = parsed_config.value;
+        return .{ .deprecated = deprecated };
     }
 };
 
