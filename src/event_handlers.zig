@@ -213,6 +213,7 @@ pub fn handleNormalEvent(
                 },
                 '/' => app.state = .fuzzy,
                 'R' => {
+                    app.text_input.clearAndFree();
                     app.state = .rename;
 
                     const entry = app.directories.getSelected() catch {
@@ -227,7 +228,10 @@ pub fn handleNormalEvent(
                         return;
                     };
                 },
-                'c' => app.state = .change_dir,
+                'c' => {
+                    app.text_input.clearAndFree();
+                    app.state = .change_dir;
+                },
                 else => {},
             }
         },
