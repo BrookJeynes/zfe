@@ -25,9 +25,9 @@ jobs:
           zig build -Dall-targets
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: releases
+          name: builds
           path: zig-out/
 
   release:
@@ -46,8 +46,8 @@ jobs:
       - name: Create tarballs
         run: |
           mkdir -p tarballs
-          for dir in artifacts/*; do
-            if [ -d "$dir" ]; then
+          for dir in artifacts/builds/*; do
+            if [ -d "$dir" ] && [ basename "$dir" != "bin"]; then
               tar -czf "tarballs/$(basename "$dir").tar.gz" -C "$dir" .
             fi
           done
