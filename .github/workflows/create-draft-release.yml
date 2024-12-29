@@ -28,7 +28,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: releases
-          path: zig-out/bin
+          path: zig-out/
 
   release:
     needs: build
