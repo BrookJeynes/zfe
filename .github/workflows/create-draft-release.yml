@@ -9,40 +9,11 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        target:
-          - { cpu_arch: aarch64, os_tag: linux }
-          - { cpu_arch: x86_64, os_tag: linux }
-          - { cpu_arch: aarch64, os_tag: macos }
-          - { cpu_arch: x86_64, os_tag: macos }
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Install dependencies (MacOS)
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: |
-          brew install mupdf
-
-      - name: Install dependencies (Linux)
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: |
-          sudo apt-get update
-          sudo apt install \
-                   libmupdf-dev \
-                   libharfbuzz-dev \
-                   libfreetype6-dev \
-                   libjbig2dec0-dev \
-                   libjpeg-dev \
-                   libopenjp2-7-dev \
-                   libgumbo-dev \
-                   libmujs-dev \
-                   zlib1g-dev
 
       - name: Set up Zig
         uses: korandoru/setup-zig@v1
@@ -51,12 +22,12 @@ jobs:
 
       - name: Build application
         run: |
-          zig build -Dtarget=${{ matrix.target.cpu_arch }}-${{ matrix.target.os_tag }} -Doptimize=ReleaseSafe
+          zig build -Dall-targets
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.target.cpu_arch }}-${{ matrix.target.os_tag }}
+          name: releases
           path: zig-out/bin
 
   release:
