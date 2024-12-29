@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir -p tarballs
           for dir in artifacts/builds/*; do
-            if [ -d "$dir" ] && [ basename "$dir" != "bin"]; then
+            if [ -d "$dir" ] && [ $(basename "$dir") != "bin" ]; then
               tar -czf "tarballs/$(basename "$dir").tar.gz" -C "$dir" .
             fi
           done
