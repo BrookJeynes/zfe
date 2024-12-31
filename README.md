@@ -47,6 +47,7 @@ Styles = struct {
     .info_bar: Style,
     .warning_bar: Style,
     .notification_box: Style,
+    .git_branch: Style,
 }
 
 Style = struct {

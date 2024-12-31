@@ -98,6 +98,9 @@ const Styles = struct {
         .fg = .{ .rgb = .{ 0, 140, 200 } },
         .bg = .{ .rgb = .{ 45, 45, 45 } },
     },
+    git_branch: vaxis.Style = vaxis.Style{
+        .fg = .{ .rgb = .{ 82, 209, 220 } },
+    },
 };
 
 pub var config: Config = Config{ .styles = Styles{} };
