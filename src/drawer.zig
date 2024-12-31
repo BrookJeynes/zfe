@@ -4,6 +4,7 @@ const Notification = @import("./notification.zig");
 const Directories = @import("./directories.zig");
 const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
+const Git = @import("./git.zig");
 
 const Drawer = @This();
 
@@ -18,12 +19,13 @@ last_item_path_buf: [std.fs.max_path_bytes]u8 = undefined,
 last_item_path: []u8 = "",
 file_info_buf: [std.fs.max_path_bytes]u8 = undefined,
 file_name_buf: [std.fs.max_path_bytes + 2]u8 = undefined, // +2 to accomodate for [<file_name>]
+git_branch: [1024]u8 = undefined,
 
 pub fn draw(self: *Drawer, app: *App) !void {
     const win = app.vx.window();
     win.clear();
 
-    const abs_file_path_bar = try drawAbsFilePath(&app.directories, win);
+    const abs_file_path_bar = try self.drawAbsFilePath(app.alloc, &app.directories, win);
     const file_info_bar = try self.drawFileInfo(&app.directories, win);
     app.last_known_height = try drawDirList(
         &app.directories,
@@ -278,15 +280,27 @@ fn drawDirList(
     return current_dir_list_win.height;
 }
 
-fn drawAbsFilePath(directories: *Directories, win: vaxis.Window) !vaxis.Window {
+fn drawAbsFilePath(
+    self: *Drawer,
+    alloc: std.mem.Allocator,
+    directories: *Directories,
+    win: vaxis.Window,
+) !vaxis.Window {
     const abs_file_path_bar = win.child(.{
         .x_off = 0,
         .y_off = 0,
         .width = win.width,
         .height = top_div,
     });
+
+    const branch_alloc = try Git.GetGitBranch(alloc, directories.dir);
+    defer if (branch_alloc) |b| alloc.free(b);
+    const branch = if (branch_alloc) |b| try std.fmt.bufPrint(&self.git_branch, "{s}", .{std.mem.trim(u8, b, " \n\r")}) else "";
+
     _ = abs_file_path_bar.print(&.{
         vaxis.Segment{ .text = try directories.fullPath(".") },
+        vaxis.Segment{ .text = if (branch_alloc != null) " on " else "" },
+        vaxis.Segment{ .text = branch, .style = config.styles.git_branch },
     }, .{});
 
     return abs_file_path_bar;
