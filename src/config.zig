@@ -74,29 +74,29 @@ const Config = struct {
 
 const Styles = struct {
     selected_list_item: vaxis.Style = vaxis.Style{
-        .bg = .{ .rgb = .{ 45, 45, 45 } },
+        .bg = .{ .rgb = .{ 39, 39, 39 } },
         .bold = true,
     },
     notification_box: vaxis.Style = vaxis.Style{
-        .bg = .{ .rgb = .{ 45, 45, 45 } },
+        .bg = .{ .rgb = .{ 39, 39, 39 } },
     },
     list_item: vaxis.Style = vaxis.Style{},
     file_name: vaxis.Style = vaxis.Style{},
     file_information: vaxis.Style = vaxis.Style{
         .fg = .{ .rgb = .{ 0, 0, 0 } },
-        .bg = .{ .rgb = .{ 255, 255, 255 } },
+        .bg = .{ .rgb = .{ 254, 252, 253 } },
     },
     error_bar: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 216, 74, 74 } },
-        .bg = .{ .rgb = .{ 45, 45, 45 } },
+        .fg = .{ .rgb = .{ 227, 23, 10 } },
+        .bg = .{ .rgb = .{ 39, 39, 39 } },
     },
     warning_bar: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 216, 129, 74 } },
-        .bg = .{ .rgb = .{ 45, 45, 45 } },
+        .fg = .{ .rgb = .{ 251, 139, 36 } },
+        .bg = .{ .rgb = .{ 39, 39, 39 } },
     },
     info_bar: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 0, 140, 200 } },
-        .bg = .{ .rgb = .{ 45, 45, 45 } },
+        .fg = .{ .rgb = .{ 82, 209, 220 } },
+        .bg = .{ .rgb = .{ 39, 39, 39 } },
     },
     git_branch: vaxis.Style = vaxis.Style{
         .fg = .{ .rgb = .{ 82, 209, 220 } },
