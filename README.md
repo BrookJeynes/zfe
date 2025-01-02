@@ -8,6 +8,7 @@
 - [Integrations](#integrations)
 - [Key manual](#key-manual)
 - [Configuration](#configuration)
+- [Contributing](#contributing)
 
 ## Installation
 To install zfe, check the "Releases" section in Github and download the 
