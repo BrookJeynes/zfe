@@ -55,17 +55,20 @@ fn drawFileName(
         .height = top_div,
     });
 
-    if (directories.getSelected()) |entry| {
-        const file_name = try std.fmt.bufPrint(
-            &self.file_name_buf,
-            "[{s}]",
-            .{entry.name},
-        );
-        _ = file_name_bar.print(&.{vaxis.Segment{
-            .text = file_name,
-            .style = config.styles.file_name,
-        }}, .{});
-    } else |_| {}
+    lbl: {
+        const entry = directories.getSelected() catch break :lbl;
+        if (entry) |e| {
+            const file_name = try std.fmt.bufPrint(
+                &self.file_name_buf,
+                "[{s}]",
+                .{e.name},
+            );
+            _ = file_name_bar.print(&.{vaxis.Segment{
+                .text = file_name,
+                .style = config.styles.file_name,
+            }}, .{});
+        }
+    }
 
     return file_name_bar;
 }
@@ -85,7 +88,10 @@ fn drawFilePreview(
 
     if (app.directories.entries.len() == 0 or !config.preview_file) return;
 
-    const entry = try app.directories.getSelected();
+    const entry = lbl: {
+        const entry = app.directories.getSelected() catch return;
+        if (entry) |e| break :lbl e else return;
+    };
 
     @memcpy(&self.last_item_path_buf, &self.current_item_path_buf);
     self.last_item_path = self.last_item_path_buf[0..self.current_item_path.len];
@@ -228,32 +234,46 @@ fn drawFileInfo(
     directories: *Directories,
     win: vaxis.Window,
 ) !vaxis.Window {
-    const file_info = try std.fmt.bufPrint(
-        &self.file_info_buf,
-        "{d}/{d} {s} {s}",
-        .{
-            directories.entries.selected + 1,
-            directories.entries.len(),
-            std.fs.path.extension(
-                if (directories.getSelected()) |entry| entry.name else |_| "",
-            ),
-            // TODO: This should be the file size, not dir.
-            std.fmt.fmtIntSizeDec((try directories.dir.metadata()).size()),
-        },
-    );
-
     const file_info_win = win.child(.{
         .x_off = 0,
         .y_off = win.height - bottom_div,
         .width = if (config.preview_file) win.width / 2 else win.width,
         .height = bottom_div,
     });
-    file_info_win.fill(vaxis.Cell{ .style = config.styles.file_information });
-    _ = file_info_win.print(&.{
-        vaxis.Segment{
-            .text = file_info,
+    file_info_win.fill(.{ .style = config.styles.file_information });
+
+    const entry = lbl: {
+        const entry = directories.getSelected() catch return file_info_win;
+        if (entry) |e| break :lbl e else return file_info_win;
+    };
+
+    var fbs = std.io.fixedBufferStream(&self.file_info_buf);
+    try fbs.writer().print(
+        "{d}/{d} ",
+        .{ directories.entries.selected + 1, directories.entries.len() },
+    );
+
+    if (entry.kind == .directory) {
+        _ = file_info_win.printSegment(.{
+            .text = fbs.getWritten(),
             .style = config.styles.file_information,
-        },
+        }, .{});
+        return file_info_win;
+    }
+
+    const file_size: u64 = lbl: {
+        const formatted_size = directories.dir.statFile(entry.name) catch break :lbl 0;
+        break :lbl formatted_size.size;
+    };
+
+    const extension = std.fs.path.extension(entry.name);
+    if (extension.len > 0) try fbs.writer().print("{s} ", .{extension});
+
+    try fbs.writer().print("{:.2}", .{std.fmt.fmtIntSizeDec(file_size)});
+
+    _ = file_info_win.printSegment(.{
+        .text = fbs.getWritten(),
+        .style = config.styles.file_information,
     }, .{});
 
     return file_info_win;
@@ -295,7 +315,14 @@ fn drawAbsFilePath(
 
     const branch_alloc = try Git.GetGitBranch(alloc, directories.dir);
     defer if (branch_alloc) |b| alloc.free(b);
-    const branch = if (branch_alloc) |b| try std.fmt.bufPrint(&self.git_branch, "{s}", .{std.mem.trim(u8, b, " \n\r")}) else "";
+    const branch = if (branch_alloc) |b|
+        try std.fmt.bufPrint(
+            &self.git_branch,
+            "{s}",
+            .{std.mem.trim(u8, b, " \n\r")},
+        )
+    else
+        "";
 
     _ = abs_file_path_bar.print(&.{
         vaxis.Segment{ .text = try directories.fullPath(".") },

@@ -53,13 +53,16 @@ pub fn deinit(self: *Self) void {
     if (self.pdf_contents) |contents| self.alloc.free(contents);
 }
 
-pub fn getSelected(self: *Self) !std.fs.Dir.Entry {
+pub fn getSelected(self: *Self) !?std.fs.Dir.Entry {
     return self.entries.getSelected();
 }
 
 /// Asserts there is a selected item.
 pub fn removeSelected(self: *Self) void {
-    const entry = self.getSelected() catch return std.debug.assert(false);
+    const entry = lbl: {
+        const entry = self.getSelected() catch return std.debug.assert(false);
+        if (entry) |e| break :lbl e else return std.debug.assert(false);
+    };
     self.alloc.free(entry.name);
     _ = self.entries.items.orderedRemove(self.entries.selected);
 }

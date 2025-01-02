@@ -49,7 +49,10 @@ pub fn handleNormalEvent(
                     }
                 },
                 Key.enter, 'l', Key.right => {
-                    const entry = app.directories.getSelected() catch return;
+                    const entry = lbl: {
+                        const entry = app.directories.getSelected() catch return;
+                        if (entry) |e| break :lbl e else return;
+                    };
 
                     switch (entry.kind) {
                         .directory => {
@@ -110,9 +113,12 @@ pub fn handleNormalEvent(
                 },
                 'g' => app.directories.entries.selectFirst(),
                 'D' => {
-                    const entry = app.directories.getSelected() catch {
-                        try app.notification.writeErr(.UnableToDelete);
-                        return;
+                    const entry = lbl: {
+                        const entry = app.directories.getSelected() catch {
+                            try app.notification.writeErr(.UnableToDelete);
+                            return;
+                        };
+                        if (entry) |e| break :lbl e else return;
                     };
 
                     var old_path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -216,10 +222,16 @@ pub fn handleNormalEvent(
                     app.text_input.clearAndFree();
                     app.state = .rename;
 
-                    const entry = app.directories.getSelected() catch {
-                        app.state = .normal;
-                        try app.notification.writeErr(.UnableToRename);
-                        return;
+                    const entry = lbl: {
+                        const entry = app.directories.getSelected() catch {
+                            app.state = .normal;
+                            try app.notification.writeErr(.UnableToRename);
+                            return;
+                        };
+                        if (entry) |e| break :lbl e else {
+                            app.state = .normal;
+                            return;
+                        }
                     };
 
                     app.text_input.insertSliceAtCursor(entry.name) catch {
@@ -319,7 +331,13 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                             var dir_prefix_buf: [std.fs.max_path_bytes]u8 = undefined;
                             const dir_prefix = try app.directories.dir.realpath(".", &dir_prefix_buf);
 
-                            const old = try app.directories.getSelected();
+                            const old = lbl: {
+                                const entry = app.directories.getSelected() catch {
+                                    try app.notification.writeErr(.UnableToRename);
+                                    return;
+                                };
+                                if (entry) |e| break :lbl e else return;
+                            };
                             const new = inputToSlice(app);
 
                             if (environment.fileExists(app.directories.dir, new)) {

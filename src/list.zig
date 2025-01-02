@@ -41,7 +41,7 @@ pub fn List(comptime T: type) type {
             return self.all()[index];
         }
 
-        pub fn getSelected(self: *Self) !T {
+        pub fn getSelected(self: *Self) !?T {
             if (self.len() > 0) {
                 if (self.selected >= self.len()) {
                     self.selected = self.len() - 1;
@@ -50,7 +50,7 @@ pub fn List(comptime T: type) type {
                 return try self.get(self.selected);
             }
 
-            return error.EmptyList;
+            return null;
         }
 
         pub fn all(self: Self) []T {
