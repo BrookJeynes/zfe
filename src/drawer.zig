@@ -5,6 +5,7 @@ const Directories = @import("./directories.zig");
 const config = &@import("./config.zig").config;
 const vaxis = @import("vaxis");
 const Git = @import("./git.zig");
+const inputToSlice = @import("./event_handlers.zig").inputToSlice;
 
 const Drawer = @This();
 
@@ -39,7 +40,8 @@ pub fn draw(self: *Drawer, app: *App) !void {
         try self.drawFilePreview(app, win, file_name_bar);
     }
 
-    try drawUserInput(app.state, &app.text_input, win);
+    const input = inputToSlice(app);
+    try drawUserInput(app.state, &app.text_input, input, win);
     try drawNotification(&app.notification, win);
 }
 
@@ -336,22 +338,27 @@ fn drawAbsFilePath(
 fn drawUserInput(
     current_state: App.State,
     text_input: *vaxis.widgets.TextInput,
+    input: []const u8,
     win: vaxis.Window,
 ) !void {
     const user_input_win = win.child(.{
         .x_off = 0,
         .y_off = top_div,
-        .width = win.width,
+        .width = win.width / 2,
         .height = info_div,
     });
+    user_input_win.fill(.{ .style = config.styles.text_input });
 
     switch (current_state) {
-        .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
+        .fuzzy, .new_file, .new_dir, .rename, .change_dir, .command => {
             text_input.draw(user_input_win);
         },
         .normal => {
             if (text_input.buf.realLength() > 0) {
-                text_input.draw(user_input_win);
+                text_input.drawWithStyle(
+                    user_input_win,
+                    if (std.mem.eql(u8, input, ":UnsupportedCommand")) config.styles.text_input_err else .{},
+                );
             }
 
             win.hideCursor();
@@ -381,15 +388,15 @@ fn drawNotification(
         .width = @intCast(calculated_width),
         .height = @intCast(height),
         .border = .{ .where = .all, .style = switch (notification.style) {
-            .info => config.styles.info_bar,
-            .err => config.styles.error_bar,
-            .warn => config.styles.warning_bar,
+            .info => config.styles.notification.info,
+            .err => config.styles.notification.err,
+            .warn => config.styles.notification.warn,
         } },
     });
 
-    notification_win.fill(.{ .style = config.styles.notification_box });
+    notification_win.fill(.{ .style = config.styles.notification.box });
     _ = notification_win.printSegment(.{
         .text = notification.slice(),
-        .style = config.styles.notification_box,
+        .style = config.styles.notification.box,
     }, .{ .wrap = .word });
 }
