@@ -10,13 +10,17 @@
             },
             "bold": true
         },
-        "file_information": {
-            "fg": {
-                "rgb": [0, 0, 0]
-            },
-            "bg": {
-                "rgb": [255, 255, 255]
+        "notification": {
+            "info": {
+                "fg": {
+                    "rgb": [127, 255, 0]
+                }
             }
+        },
+        "git_branch": {
+            "fg": {
+                "rgb": [127, 255, 0]
+            }        
         }
     }
 }

@@ -19,6 +19,7 @@ pub const State = enum {
     new_file,
     change_dir,
     rename,
+    command,
 };
 
 const ActionPaths = struct {
@@ -122,7 +123,7 @@ pub fn run(self: *App) !void {
                 .normal => {
                     try EventHandlers.handleNormalEvent(self, event, &loop);
                 },
-                .fuzzy, .new_file, .new_dir, .rename, .change_dir => {
+                .fuzzy, .new_file, .new_dir, .rename, .change_dir, .command => {
                     try EventHandlers.handleInputEvent(self, event);
                 },
             }

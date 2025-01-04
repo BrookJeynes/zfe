@@ -4,6 +4,7 @@ const environment = @import("./environment.zig");
 const zuid = @import("zuid");
 const vaxis = @import("vaxis");
 const Key = vaxis.Key;
+const config = &@import("./config.zig").config;
 
 pub fn inputToSlice(self: *App) []const u8 {
     self.text_input.buf.cursor = self.text_input.buf.realLength();
@@ -17,8 +18,9 @@ pub fn handleNormalEvent(
 ) !void {
     switch (event) {
         .key_press => |key| {
-            if ((key.codepoint == 'c' and key.mods.ctrl) or key.codepoint == 'q') {
+            if ((key.codepoint == 'c' and key.mods.ctrl)) {
                 app.should_quit = true;
+                return;
             }
 
             switch (key.codepoint) {
@@ -217,7 +219,10 @@ pub fn handleNormalEvent(
                         try app.notification.writeInfo(.EmptyUndo);
                     }
                 },
-                '/' => app.state = .fuzzy,
+                '/' => {
+                    app.text_input.clearAndFree();
+                    app.state = .fuzzy;
+                },
                 'R' => {
                     app.text_input.clearAndFree();
                     app.state = .rename;
@@ -243,6 +248,11 @@ pub fn handleNormalEvent(
                 'c' => {
                     app.text_input.clearAndFree();
                     app.state = .change_dir;
+                },
+                ':' => {
+                    app.text_input.clearAndFree();
+                    app.text_input.insertSliceAtCursor(":") catch {};
+                    app.state = .command;
                 },
                 else => {},
             }
@@ -396,6 +406,39 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
 
                             app.text_input.clearAndFree();
                         },
+                        .command => {
+                            const command = inputToSlice(app);
+
+                            supported: {
+                                if (std.mem.eql(u8, command, ":q")) {
+                                    app.should_quit = true;
+                                    return;
+                                }
+
+                                if (std.mem.eql(u8, command, ":config")) {
+                                    if (config.config_path) |path| {
+                                        if (std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "/config.json"), .{ .iterate = true })) |dir| {
+                                            app.directories.clearEntries();
+                                            app.directories.dir = dir;
+                                            app.directories.populateEntries("") catch |err| {
+                                                switch (err) {
+                                                    error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
+                                                    else => try app.notification.writeErr(.UnknownError),
+                                                }
+                                            };
+                                        } else |_| {
+                                            try app.notification.writeErr(.UnableToOpenFile);
+                                        }
+                                    } else {
+                                        try app.text_input.insertSliceAtCursor(":ConfigNotFound");
+                                    }
+                                    break :supported;
+                                }
+
+                                app.text_input.clearAndFree();
+                                try app.text_input.insertSliceAtCursor(":UnsupportedCommand");
+                            }
+                        },
                         else => {},
                     }
                     app.state = .normal;
@@ -414,6 +457,13 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                                     else => try app.notification.writeErr(.UnknownError),
                                 }
                             };
+                        },
+                        .command => {
+                            const command = inputToSlice(app);
+                            if (!std.mem.startsWith(u8, command, ":")) {
+                                app.text_input.clearAndFree();
+                                try app.text_input.insertSliceAtCursor(":");
+                            }
                         },
                         else => {},
                     }

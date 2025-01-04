@@ -13,6 +13,9 @@ const Config = struct {
     preview_file: bool = true,
     styles: Styles,
 
+    config_path_buf: [std.fs.max_path_bytes]u8 = undefined,
+    config_path: ?[]u8 = null,
+
     pub fn parse(self: *Config, alloc: std.mem.Allocator) !ParseRes {
         var deprecated = false;
         var config_location: struct {
@@ -68,38 +71,58 @@ const Config = struct {
         defer parsed_config.deinit();
 
         self.* = parsed_config.value;
+        self.config_path = config_location.home_dir.realpath(
+            config_location.path,
+            &self.config_path_buf,
+        ) catch null;
         return .{ .deprecated = deprecated };
     }
 };
 
+const Colours = struct {
+    const RGB = [3]u8;
+    const red: RGB = .{ 227, 23, 10 };
+    const orange: RGB = .{ 251, 139, 36 };
+    const blue: RGB = .{ 82, 209, 220 };
+    const grey: RGB = .{ 39, 39, 39 };
+    const black: RGB = .{ 0, 0, 0 };
+    const snow_white: RGB = .{ 254, 252, 253 };
+};
+
+const NotificationStyles = struct {
+    box: vaxis.Style = vaxis.Style{
+        .bg = .{ .rgb = Colours.grey },
+    },
+    err: vaxis.Style = vaxis.Style{
+        .fg = .{ .rgb = Colours.red },
+        .bg = .{ .rgb = Colours.grey },
+    },
+    warn: vaxis.Style = vaxis.Style{
+        .fg = .{ .rgb = Colours.orange },
+        .bg = .{ .rgb = Colours.grey },
+    },
+    info: vaxis.Style = vaxis.Style{
+        .fg = .{ .rgb = Colours.blue },
+        .bg = .{ .rgb = Colours.grey },
+    },
+};
+
 const Styles = struct {
     selected_list_item: vaxis.Style = vaxis.Style{
-        .bg = .{ .rgb = .{ 39, 39, 39 } },
+        .bg = .{ .rgb = Colours.grey },
         .bold = true,
     },
-    notification_box: vaxis.Style = vaxis.Style{
-        .bg = .{ .rgb = .{ 39, 39, 39 } },
-    },
+    notification: NotificationStyles = NotificationStyles{},
+    text_input: vaxis.Style = vaxis.Style{},
+    text_input_err: vaxis.Style = vaxis.Style{ .bg = .{ .rgb = Colours.red } },
     list_item: vaxis.Style = vaxis.Style{},
     file_name: vaxis.Style = vaxis.Style{},
     file_information: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 0, 0, 0 } },
-        .bg = .{ .rgb = .{ 254, 252, 253 } },
-    },
-    error_bar: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 227, 23, 10 } },
-        .bg = .{ .rgb = .{ 39, 39, 39 } },
-    },
-    warning_bar: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 251, 139, 36 } },
-        .bg = .{ .rgb = .{ 39, 39, 39 } },
-    },
-    info_bar: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 82, 209, 220 } },
-        .bg = .{ .rgb = .{ 39, 39, 39 } },
+        .fg = .{ .rgb = Colours.black },
+        .bg = .{ .rgb = Colours.snow_white },
     },
     git_branch: vaxis.Style = vaxis.Style{
-        .fg = .{ .rgb = .{ 82, 209, 220 } },
+        .fg = .{ .rgb = Colours.blue },
     },
 };
 

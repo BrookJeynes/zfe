@@ -21,8 +21,7 @@ appropriate version or build locally via `zig build -Doptimize=ReleaseSafe`.
 ## Key manual
 ```
 Normal mode:
-q / <CTRL-c>       :Exit.
-
+<CTRL-c>           :Exit.
 j / <Down>         :Go down.
 k / <Up>           :Go up.
 h / <Left> / -     :Go to the parent directory.
@@ -30,18 +29,23 @@ l / <Right>        :Open item or change directory.
 g                  :Go to the top.
 G                  :Go to the bottom.
 c                  :Change directory via path. Will enter input mode.
-
 R                  :Rename item. Will enter input mode.
 D                  :Delete item.
 u                  :Undo delete/rename.
-
 d                  :Create directory. Will enter input mode.
 %                  :Create file. Will enter input mode.
 /                  :Fuzzy search directory. Will enter input mode.
+:                  :Allows for zfe commands to be entered. Please refer to the 
+                    "Command mode" section for available commands. Will enter 
+                    input mode.
 
 Input mode:
 <Esc>              :Cancel input.
-<Enter>            :Confirm input.
+<CR>               :Confirm input.
+
+Command mode:
+:q                 :Exit.
+:config            :Navigate to config directory if it exists.
 ```
 
 
@@ -65,15 +69,19 @@ Config = struct {
     .styles: Styles,
 }
 
+NotificationStyles = struct {
+    box: vaxis.Style,
+    err: vaxis.Style,
+    warn: vaxis.Style,
+    info: vaxis.Style,
+};
+
 Styles = struct {
     .selected_list_item: Style,
     .list_item: Style,
     .file_name: Style,
     .file_information: Style
-    .error_bar: Style,
-    .info_bar: Style,
-    .warning_bar: Style,
-    .notification_box: Style,
+    .notification: NotificationStyles,
     .git_branch: Style,
 }
 
