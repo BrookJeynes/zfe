@@ -123,7 +123,7 @@ pub fn run(self: *App) !void {
                 .normal => {
                     try EventHandlers.handleNormalEvent(self, event, &loop);
                 },
-                .fuzzy, .new_file, .new_dir, .rename, .change_dir, .command => {
+                else => {
                     try EventHandlers.handleInputEvent(self, event);
                 },
             }
@@ -134,5 +134,13 @@ pub fn run(self: *App) !void {
         var buffered = self.tty.bufferedWriter();
         try self.vx.render(buffered.writer().any());
         try buffered.flush();
+    }
+
+    if (config.empty_trash_on_exit) {
+        if (try config.trashDir()) |dir| {
+            var trash_dir = dir;
+            defer trash_dir.close();
+            _ = try environment.deleteContents(trash_dir);
+        }
     }
 }

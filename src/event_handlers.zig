@@ -5,6 +5,7 @@ const zuid = @import("zuid");
 const vaxis = @import("vaxis");
 const Key = vaxis.Key;
 const config = &@import("./config.zig").config;
+const commands = @import("./commands.zig");
 
 pub fn inputToSlice(self: *App) []const u8 {
     self.text_input.buf.cursor = self.text_input.buf.realLength();
@@ -28,6 +29,7 @@ pub fn handleNormalEvent(
                     app.text_input.clearAndFree();
 
                     if (app.directories.dir.openDir("../", .{ .iterate = true })) |dir| {
+                        app.directories.dir.close();
                         app.directories.dir = dir;
 
                         app.directories.clearEntries();
@@ -61,6 +63,7 @@ pub fn handleNormalEvent(
                             app.text_input.clearAndFree();
 
                             if (app.directories.dir.openDir(entry.name, .{ .iterate = true })) |dir| {
+                                app.directories.dir.close();
                                 app.directories.dir = dir;
 
                                 _ = app.directories.history.push(.{
@@ -125,8 +128,26 @@ pub fn handleNormalEvent(
 
                     var old_path_buf: [std.fs.max_path_bytes]u8 = undefined;
                     const old_path = try app.alloc.dupe(u8, try app.directories.dir.realpath(entry.name, &old_path_buf));
+
+                    const trash_dir = dir: {
+                        notfound: {
+                            break :dir (config.trashDir() catch break :notfound) orelse break :notfound;
+                        }
+                        try app.notification.writeErr(.UnableToDelete);
+                        return;
+                    };
+                    defer trash_dir.close();
+                    var trash_dir_path_buf: [std.fs.max_path_bytes]u8 = undefined;
+                    const trash_dir_path = try trash_dir.realpath(".", &trash_dir_path_buf);
+
+                    if (std.mem.eql(u8, old_path, trash_dir_path)) {
+                        try app.notification.writeErr(.CannotDeleteTrashDir);
+                        app.alloc.free(old_path);
+                        return;
+                    }
+
                     var tmp_path_buf: [std.fs.max_path_bytes]u8 = undefined;
-                    const tmp_path = try app.alloc.dupe(u8, try std.fmt.bufPrint(&tmp_path_buf, "/tmp/{s}-{s}", .{ entry.name, zuid.new.v4().toString() }));
+                    const tmp_path = try app.alloc.dupe(u8, try std.fmt.bufPrint(&tmp_path_buf, "{s}/{s}-{s}", .{ trash_dir_path, entry.name, zuid.new.v4().toString() }));
 
                     if (app.directories.dir.rename(entry.name, tmp_path)) {
                         if (app.actions.push(.{
@@ -175,11 +196,11 @@ pub fn handleNormalEvent(
 
                         switch (action) {
                             .delete => |a| {
+                                defer app.alloc.free(a.new);
+                                defer app.alloc.free(a.old);
+
                                 // TODO: Will overwrite an item if it has the same name.
                                 if (app.directories.dir.rename(a.new, a.old)) {
-                                    defer app.alloc.free(a.new);
-                                    defer app.alloc.free(a.old);
-
                                     app.directories.clearEntries();
                                     const fuzzy = inputToSlice(app);
                                     app.directories.populateEntries(fuzzy) catch |err| {
@@ -194,11 +215,11 @@ pub fn handleNormalEvent(
                                 }
                             },
                             .rename => |a| {
+                                defer app.alloc.free(a.new);
+                                defer app.alloc.free(a.old);
+
                                 // TODO: Will overwrite an item if it has the same name.
                                 if (app.directories.dir.rename(a.new, a.old)) {
-                                    defer app.alloc.free(a.new);
-                                    defer app.alloc.free(a.old);
-
                                     app.directories.clearEntries();
                                     const fuzzy = inputToSlice(app);
                                     app.directories.populateEntries(fuzzy) catch |err| {
@@ -383,6 +404,7 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                         .change_dir => {
                             const path = inputToSlice(app);
                             if (app.directories.dir.openDir(path, .{ .iterate = true })) |dir| {
+                                app.directories.dir.close();
                                 app.directories.dir = dir;
 
                                 try app.notification.writeInfo(.ChangedDir);
@@ -416,22 +438,18 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                                 }
 
                                 if (std.mem.eql(u8, command, ":config")) {
-                                    if (config.config_path) |path| {
-                                        if (std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "/config.json"), .{ .iterate = true })) |dir| {
-                                            app.directories.clearEntries();
-                                            app.directories.dir = dir;
-                                            app.directories.populateEntries("") catch |err| {
-                                                switch (err) {
-                                                    error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
-                                                    else => try app.notification.writeErr(.UnknownError),
-                                                }
-                                            };
-                                        } else |_| {
-                                            try app.notification.writeErr(.UnableToOpenFile);
-                                        }
-                                    } else {
-                                        try app.text_input.insertSliceAtCursor(":ConfigNotFound");
-                                    }
+                                    try commands.config(app);
+                                    break :supported;
+                                }
+
+                                if (std.mem.eql(u8, command, ":trash")) {
+                                    try commands.trash(app);
+                                    break :supported;
+                                }
+
+                                // TODO(06-01-25): Add a confirmation for this.
+                                if (std.mem.eql(u8, command, ":empty_trash")) {
+                                    try commands.emptyTrash(app);
                                     break :supported;
                                 }
 

@@ -2,7 +2,8 @@
 
 ![zfe preview](./assets/preview.png)
 
-**zfe** is a small unix tui file explorer designed to be simple and fast.
+**zfe** is a small unix tui file explorer with vim-like bindings designed to 
+be simple and fast.
 
 - [Installation](#installation)
 - [Integrations](#integrations)
@@ -46,6 +47,8 @@ Input mode:
 Command mode:
 :q                 :Exit.
 :config            :Navigate to config directory if it exists.
+:trash             :Navigate to trash directory if it exists.
+:empty_trash       :Empty trash if it exists.
 ```
 
 
@@ -66,6 +69,7 @@ Config = struct {
     .sort_dirs: bool,
     .show_images: bool,
     .preview_file: bool,
+    .empty_trash_on_exit: bool,
     .styles: Styles,
 }
 
