@@ -129,7 +129,7 @@ pub fn handleNormalEvent(
                     var old_path_buf: [std.fs.max_path_bytes]u8 = undefined;
                     const old_path = try app.alloc.dupe(u8, try app.directories.dir.realpath(entry.name, &old_path_buf));
 
-                    const trash_dir = dir: {
+                    var trash_dir = dir: {
                         notfound: {
                             break :dir (config.trashDir() catch break :notfound) orelse break :notfound;
                         }
