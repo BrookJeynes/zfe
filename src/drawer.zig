@@ -315,7 +315,7 @@ fn drawAbsFilePath(
         .height = top_div,
     });
 
-    const branch_alloc = try Git.GetGitBranch(alloc, directories.dir);
+    const branch_alloc = try Git.getGitBranch(alloc, directories.dir);
     defer if (branch_alloc) |b| alloc.free(b);
     const branch = if (branch_alloc) |b|
         try std.fmt.bufPrint(

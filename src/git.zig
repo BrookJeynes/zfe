@@ -1,23 +1,16 @@
 const std = @import("std");
 
 /// Callers owns memory returned.
-pub fn GetGitBranch(
-    alloc: std.mem.Allocator,
-    dir: std.fs.Dir,
-) !?[]const u8 {
-    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const path = try dir.realpath(".", &path_buf);
+pub fn getGitBranch(alloc: std.mem.Allocator, dir: std.fs.Dir) !?[]const u8 {
+    var file = dir.openFile(".git/HEAD", .{}) catch return null;
+    defer file.close();
 
-    const res = try std.process.Child.run(.{
-        .allocator = alloc,
-        .argv = &[_][]const u8{ "git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD" },
-    });
-    defer alloc.free(res.stderr);
+    var buf: [1024]u8 = undefined;
+    const bytes = file.readAll(&buf) catch return null;
 
-    if (res.term.Exited != 0) {
-        alloc.free(res.stdout);
-        return null;
-    }
+    var it = std.mem.splitBackwardsSequence(u8, buf[0..bytes], "/");
+    const branch = it.next() orelse return null;
+    if (std.mem.eql(u8, branch, "")) return null;
 
-    return res.stdout;
+    return try alloc.dupe(u8, branch);
 }
