@@ -11,10 +11,29 @@ const Config = struct {
     sort_dirs: bool = true,
     show_images: bool = true,
     preview_file: bool = true,
+    empty_trash_on_exit: bool = false,
     styles: Styles,
 
     config_path_buf: [std.fs.max_path_bytes]u8 = undefined,
     config_path: ?[]u8 = null,
+
+    ///Returned dir needs to be closed by user.
+    pub fn configDir(self: Config) !?std.fs.Dir {
+        if (self.config_path) |path| {
+            return try std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "/config.json"), .{ .iterate = true });
+        } else return null;
+    }
+
+    ///Returned dir needs to be closed by user.
+    pub fn trashDir(self: Config) !?std.fs.Dir {
+        var parent = try self.configDir() orelse return null;
+        defer parent.close();
+        if (!environment.dirExists(parent, "trash")) {
+            try parent.makeDir("trash");
+        }
+
+        return try parent.openDir("trash", .{ .iterate = true });
+    }
 
     pub fn parse(self: *Config, alloc: std.mem.Allocator) !ParseRes {
         var deprecated = false;

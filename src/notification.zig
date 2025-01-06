@@ -17,6 +17,7 @@ const Error = enum {
     UnableToUndo,
     UnableToOpenFile,
     UnableToDelete,
+    FailedToDeleteSomeItems,
     UnableToDeleteAcrossMountPoints,
     UnsupportedImageFormat,
     EditorNotSet,
@@ -25,6 +26,8 @@ const Error = enum {
     IncorrectPath,
     ConfigSyntaxError,
     ConfigUnknownError,
+    ConfigPathNotFound,
+    CannotDeleteTrashDir,
 };
 
 const Info = enum {
@@ -64,6 +67,7 @@ pub fn writeErr(self: *Self, err: Error) !void {
         .UnknownError => self.write("An unknown error occurred.", .err),
         .UnableToOpenFile => self.write("Unable to open file.", .err),
         .UnableToDelete => self.write("Unable to delete item.", .err),
+        .FailedToDeleteSomeItems => self.write("Failed to delete some items..", .err),
         .UnableToDeleteAcrossMountPoints => self.write("Unable to move item to /tmp. Failed to delete.", .err),
         .UnableToUndo => self.write("Unable to undo previous action.", .err),
         .ItemAlreadyExists => self.write("Item already exists.", .err),
@@ -73,6 +77,8 @@ pub fn writeErr(self: *Self, err: Error) !void {
         .UnsupportedImageFormat => self.write("Unsupported image format.", .err),
         .ConfigSyntaxError => self.write("Could not read config due to a syntax error.", .err),
         .ConfigUnknownError => self.write("Could not read config due to an unknown error.", .err),
+        .ConfigPathNotFound => self.write("Could not read config due to unset env variables. Please set either $HOME or $XDG_CONFIG_HOME.", .err),
+        .CannotDeleteTrashDir => self.write("Cannot delete trash directory.", .err),
     };
 }
 

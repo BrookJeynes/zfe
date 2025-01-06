@@ -67,3 +67,15 @@ pub fn dirExists(dir: std.fs.Dir, path: []const u8) bool {
     };
     return result;
 }
+
+///Returns the amount of files failed to be delete.
+pub fn deleteContents(dir: std.fs.Dir) !usize {
+    var failed: usize = 0;
+    var it = dir.iterate();
+    while (try it.next()) |entry| {
+        dir.deleteTree(entry.name) catch {
+            failed += 1;
+        };
+    }
+    return failed;
+}
