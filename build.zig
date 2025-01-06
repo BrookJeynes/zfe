@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) !void {
     // Building targets for release.
     const build_all = b.option(bool, "all-targets", "Build all targets in ReleaseSafe mode.") orelse false;
     if (build_all) {
-        try build_targets(b);
+        try buildTargets(b);
         return;
     }
 
@@ -50,7 +50,7 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run_cmd.step);
 }
 
-fn build_targets(b: *std.Build) !void {
+fn buildTargets(b: *std.Build) !void {
     for (targets) |t| {
         const target = b.resolveTargetQuery(t);
 
