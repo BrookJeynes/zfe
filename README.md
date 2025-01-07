@@ -1,9 +1,17 @@
-# zfe
+# 地圖 (Jido)
 
-![zfe preview](./assets/preview.png)
+![Jido preview](./assets/preview.png)
 
-**zfe** is a small unix tui file explorer with vim-like bindings designed to 
-be simple and fast.
+> **Note:** Previously known as **zfe**, this project has been renamed to 
+**Jido** to better reflect its purpose and functionality.
+
+**Jido** is a lightweight Unix TUI file explorer designed for speed and 
+simplicity.
+
+The name 地圖 (지도) translates to "map" in English, reflecting Jido's 
+purpose: helping you navigate and explore your file system with ease. With 
+Vim-like bindings and a minimalist interface, Jido focuses on speed and
+simplicity.
 
 - [Installation](#installation)
 - [Integrations](#integrations)
@@ -12,8 +20,8 @@ be simple and fast.
 - [Contributing](#contributing)
 
 ## Installation
-To install zfe, check the "Releases" section in Github and download the 
-appropriate version or build locally via `zig build -Doptimize=ReleaseSafe`.
+To install Jido, check the "Releases" page or build locally 
+via `zig build --release=safe`.
 
 ## Integrations
 - `pdftotext` to view PDF text previews.
@@ -36,7 +44,7 @@ u                  :Undo delete/rename.
 d                  :Create directory. Will enter input mode.
 %                  :Create file. Will enter input mode.
 /                  :Fuzzy search directory. Will enter input mode.
-:                  :Allows for zfe commands to be entered. Please refer to the 
+:                  :Allows for Jido commands to be entered. Please refer to the 
                     "Command mode" section for available commands. Will enter 
                     input mode.
 
@@ -53,14 +61,14 @@ Command mode:
 
 
 ## Configuration
-Configure `zfe` by editing the external configuration file located at either:
-- `$HOME/.zfe/config.json`
-- `$XDG_CONFIG_HOME/zfe/config.json`.
+Configure `jido` by editing the external configuration file located at either:
+- `$HOME/.jido/config.json`
+- `$XDG_CONFIG_HOME/jido/config.json`.
 
-zfe will look for these env variables specifically. If they are not set, zfe will
+Jido will look for these env variables specifically. If they are not set, Jido will
 not be able to find the config file.
 
-An example config file can be found [here](https://github.com/BrookJeynes/zfe/blob/main/example-config.json).
+An example config file can be found [here](https://github.com/BrookJeynes/jido/blob/main/example-config.json).
 
 Config schema:
 ```

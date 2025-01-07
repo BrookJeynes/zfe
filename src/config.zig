@@ -20,7 +20,7 @@ const Config = struct {
     ///Returned dir needs to be closed by user.
     pub fn configDir(self: Config) !?std.fs.Dir {
         if (self.config_path) |path| {
-            return try std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "/config.json"), .{ .iterate = true });
+            return try std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "config.json"), .{ .iterate = true });
         } else return null;
     }
 
@@ -42,7 +42,7 @@ const Config = struct {
             path: []const u8,
         } = lbl: {
             if (try environment.getXdgConfigHomeDir()) |home_dir| {
-                const path = "zfe" ++ std.fs.path.sep_str ++ "config.json";
+                const path = "jido" ++ std.fs.path.sep_str ++ "config.json";
                 if (environment.fileExists(home_dir, path)) {
                     break :lbl .{
                         .home_dir = home_dir,
@@ -55,7 +55,7 @@ const Config = struct {
             }
 
             if (try environment.getHomeDir()) |home_dir| {
-                const path = ".zfe" ++ std.fs.path.sep_str ++ "config.json";
+                const path = ".jido" ++ std.fs.path.sep_str ++ "config.json";
                 if (environment.fileExists(home_dir, path)) {
                     break :lbl .{
                         .home_dir = home_dir,
@@ -63,7 +63,7 @@ const Config = struct {
                     };
                 }
 
-                const deprecated_path = ".config" ++ std.fs.path.sep_str ++ "zfe" ++ std.fs.path.sep_str ++ "config.json";
+                const deprecated_path = ".config" ++ std.fs.path.sep_str ++ "jido" ++ std.fs.path.sep_str ++ "config.json";
                 if (environment.fileExists(home_dir, deprecated_path)) {
                     deprecated = true;
                     break :lbl .{

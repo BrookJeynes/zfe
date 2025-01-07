@@ -97,7 +97,7 @@ pub fn writeInfo(self: *Self, info: Info) !void {
 
 pub fn writeWarn(self: *Self, warning: Warn) !void {
     try switch (warning) {
-        .DeprecatedConfigPath => self.write("You are using a deprecated config path. Please move your config to either `$XDG_CONFIG_HOME/zfe` or `$HOME/.zfe`", .warn),
+        .DeprecatedConfigPath => self.write("You are using a deprecated config path. Please move your config to either `$XDG_CONFIG_HOME/jido` or `$HOME/.jido`", .warn),
     };
 }
 
