@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) !void {
         return;
     }
 
-    const exe = try createExe(b, "zfe", target, optimize);
+    const exe = try createExe(b, "jido", target, optimize);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -54,7 +54,7 @@ fn buildTargets(b: *std.Build) !void {
     for (targets) |t| {
         const target = b.resolveTargetQuery(t);
 
-        const exe = try createExe(b, "zfe", target, .ReleaseSafe);
+        const exe = try createExe(b, "jido", target, .ReleaseSafe);
         b.installArtifact(exe);
 
         const target_output = b.addInstallArtifact(exe, .{
