@@ -48,7 +48,7 @@ Command mode:
 :q                 :Exit.
 :config            :Navigate to config directory if it exists.
 :trash             :Navigate to trash directory if it exists.
-:empty_trash       :Empty trash if it exists.
+:empty_trash       :Empty trash if it exists. This action cannot be undone.
 ```
 
 
