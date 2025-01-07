@@ -133,7 +133,8 @@ pub fn handleNormalEvent(
                         notfound: {
                             break :dir (config.trashDir() catch break :notfound) orelse break :notfound;
                         }
-                        try app.notification.writeErr(.UnableToDelete);
+                        app.alloc.free(old_path);
+                        try app.notification.writeErr(.ConfigPathNotFound);
                         return;
                     };
                     defer trash_dir.close();
