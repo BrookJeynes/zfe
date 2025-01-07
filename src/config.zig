@@ -20,7 +20,7 @@ const Config = struct {
     ///Returned dir needs to be closed by user.
     pub fn configDir(self: Config) !?std.fs.Dir {
         if (self.config_path) |path| {
-            return try std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "/config.json"), .{ .iterate = true });
+            return try std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "config.json"), .{ .iterate = true });
         } else return null;
     }
 
