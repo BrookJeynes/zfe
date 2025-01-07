@@ -1,6 +1,6 @@
 .{
     .name = "jido",
-    .version = "0.9.0",
+    .version = "0.8.0",
     .minimum_zig_version = "0.13.0",
 
     .dependencies = .{
