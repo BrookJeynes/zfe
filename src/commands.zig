@@ -67,13 +67,18 @@ pub fn emptyTrash(app: *App) !void {
     };
 }
 
+///Change directory.
 pub fn cd(app: *App, path: []const u8) !void {
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
     const resolved_path = lbl: {
         const resolved_path = if (std.mem.startsWith(u8, path, "~")) path: {
             var home_dir = (environment.getHomeDir() catch break :path path) orelse break :path path;
             defer home_dir.close();
-            break :lbl home_dir.realpath(std.mem.trim(u8, path[1..], std.fs.path.sep_str), &path_buf) catch path;
+            const relative = std.mem.trim(u8, path[1..], std.fs.path.sep_str);
+            break :lbl home_dir.realpath(
+                if (relative.len == 0) "." else relative,
+                &path_buf,
+            ) catch path;
         } else path;
 
         break :lbl app.directories.dir.realpath(resolved_path, &path_buf) catch path;
