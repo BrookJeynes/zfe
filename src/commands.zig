@@ -1,3 +1,4 @@
+const std = @import("std");
 const App = @import("app.zig");
 const environment = @import("environment.zig");
 const _config = &@import("./config.zig").config;
@@ -64,4 +65,39 @@ pub fn emptyTrash(app: *App) !void {
             else => try app.notification.writeErr(.UnknownError),
         }
     };
+}
+
+pub fn cd(app: *App, path: []const u8) !void {
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const resolved_path = lbl: {
+        const resolved_path = if (std.mem.startsWith(u8, path, "~")) path: {
+            var home_dir = (environment.getHomeDir() catch break :path path) orelse break :path path;
+            defer home_dir.close();
+            break :lbl home_dir.realpath(std.mem.trim(u8, path[1..], std.fs.path.sep_str), &path_buf) catch path;
+        } else path;
+
+        break :lbl app.directories.dir.realpath(resolved_path, &path_buf) catch path;
+    };
+
+    if (app.directories.dir.openDir(resolved_path, .{ .iterate = true })) |dir| {
+        app.directories.dir.close();
+        app.directories.dir = dir;
+
+        try app.notification.writeInfo(.ChangedDir);
+
+        app.directories.clearEntries();
+        app.directories.populateEntries("") catch |err| {
+            switch (err) {
+                error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
+                else => try app.notification.writeErr(.UnknownError),
+            }
+        };
+        app.directories.history.reset();
+    } else |err| {
+        switch (err) {
+            error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
+            error.FileNotFound, error.NotDir => try app.notification.writeErr(.IncorrectPath),
+            else => try app.notification.writeErr(.UnknownError),
+        }
+    }
 }

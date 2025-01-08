@@ -404,29 +404,7 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                         },
                         .change_dir => {
                             const path = inputToSlice(app);
-                            if (app.directories.dir.openDir(path, .{ .iterate = true })) |dir| {
-                                app.directories.dir.close();
-                                app.directories.dir = dir;
-
-                                try app.notification.writeInfo(.ChangedDir);
-
-                                app.directories.clearEntries();
-                                app.directories.populateEntries("") catch |err| {
-                                    switch (err) {
-                                        error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
-                                        else => try app.notification.writeErr(.UnknownError),
-                                    }
-                                };
-                                app.directories.history.reset();
-                            } else |err| {
-                                switch (err) {
-                                    error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
-                                    error.FileNotFound => try app.notification.writeErr(.IncorrectPath),
-                                    error.NotDir => try app.notification.writeErr(.IncorrectPath),
-                                    else => try app.notification.writeErr(.UnknownError),
-                                }
-                            }
-
+                            try commands.cd(app, path);
                             app.text_input.clearAndFree();
                         },
                         .command => {
@@ -445,6 +423,12 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
 
                                 if (std.mem.eql(u8, command, ":trash")) {
                                     try commands.trash(app);
+                                    break :supported;
+                                }
+
+                                if (std.mem.startsWith(u8, command, ":cd ")) {
+                                    const path = std.mem.trim(u8, command, ":cd \n\r");
+                                    try commands.cd(app, path);
                                     break :supported;
                                 }
 
