@@ -4,7 +4,10 @@ const environment = @import("./environment.zig");
 const vaxis = @import("vaxis");
 const Notification = @import("./notification.zig");
 
-pub const ParseRes = struct { deprecated: bool };
+const CONFIG_NAME = "config.json";
+const TRASH_DIR_NAME = "trash";
+const HOME_DIR_NAME = ".jido";
+const XDG_CONFIG_HOME_DIR_NAME = "jido";
 
 const Config = struct {
     show_hidden: bool = true,
@@ -14,13 +17,12 @@ const Config = struct {
     empty_trash_on_exit: bool = false,
     styles: Styles = Styles{},
 
-    config_path_buf: [std.fs.max_path_bytes]u8 = undefined,
-    config_path: ?[]u8 = null,
+    config_dir: ?std.fs.Dir = null,
 
     ///Returned dir needs to be closed by user.
     pub fn configDir(self: Config) !?std.fs.Dir {
-        if (self.config_path) |path| {
-            return try std.fs.openDirAbsolute(std.mem.trimRight(u8, path, "config.json"), .{ .iterate = true });
+        if (self.config_dir) |dir| {
+            return try dir.openDir(".", .{ .iterate = true });
         } else return null;
     }
 
@@ -28,59 +30,57 @@ const Config = struct {
     pub fn trashDir(self: Config) !?std.fs.Dir {
         var parent = try self.configDir() orelse return null;
         defer parent.close();
-        if (!environment.dirExists(parent, "trash")) {
-            try parent.makeDir("trash");
+        if (!environment.dirExists(parent, TRASH_DIR_NAME)) {
+            try parent.makeDir(TRASH_DIR_NAME);
         }
 
-        return try parent.openDir("trash", .{ .iterate = true });
+        return try parent.openDir(TRASH_DIR_NAME, .{ .iterate = true });
     }
 
-    pub fn parse(self: *Config, alloc: std.mem.Allocator) !ParseRes {
-        var deprecated = false;
-        var config_location: struct {
-            home_dir: std.fs.Dir,
-            path: []const u8,
-        } = lbl: {
+    pub fn parse(self: *Config, alloc: std.mem.Allocator) !void {
+        var dir = lbl: {
             if (try environment.getXdgConfigHomeDir()) |home_dir| {
-                const path = "jido" ++ std.fs.path.sep_str ++ "config.json";
-                if (environment.fileExists(home_dir, path)) {
-                    break :lbl .{
-                        .home_dir = home_dir,
-                        .path = path,
-                    };
+                defer {
+                    var dir = home_dir;
+                    dir.close();
                 }
 
-                var dir = home_dir;
-                dir.close();
+                if (!environment.dirExists(home_dir, XDG_CONFIG_HOME_DIR_NAME)) {
+                    try home_dir.makeDir(XDG_CONFIG_HOME_DIR_NAME);
+                }
+
+                const jido_dir = try home_dir.openDir(XDG_CONFIG_HOME_DIR_NAME, .{ .iterate = true });
+                self.config_dir = jido_dir;
+
+                if (environment.fileExists(jido_dir, CONFIG_NAME)) {
+                    break :lbl jido_dir;
+                }
+                return;
             }
 
             if (try environment.getHomeDir()) |home_dir| {
-                const path = ".jido" ++ std.fs.path.sep_str ++ "config.json";
-                if (environment.fileExists(home_dir, path)) {
-                    break :lbl .{
-                        .home_dir = home_dir,
-                        .path = path,
-                    };
+                defer {
+                    var dir = home_dir;
+                    dir.close();
                 }
 
-                const deprecated_path = ".config" ++ std.fs.path.sep_str ++ "jido" ++ std.fs.path.sep_str ++ "config.json";
-                if (environment.fileExists(home_dir, deprecated_path)) {
-                    deprecated = true;
-                    break :lbl .{
-                        .home_dir = home_dir,
-                        .path = deprecated_path,
-                    };
+                if (!environment.dirExists(home_dir, HOME_DIR_NAME)) {
+                    try home_dir.makeDir(HOME_DIR_NAME);
                 }
 
-                var dir = home_dir;
-                dir.close();
+                const jido_dir = try home_dir.openDir(HOME_DIR_NAME, .{ .iterate = true });
+                self.config_dir = jido_dir;
+
+                if (environment.fileExists(jido_dir, CONFIG_NAME)) {
+                    break :lbl jido_dir;
+                }
+                return;
             }
 
-            return .{ .deprecated = deprecated };
+            return;
         };
-        defer config_location.home_dir.close();
 
-        const config_file = try config_location.home_dir.openFile(config_location.path, .{});
+        const config_file = try dir.openFile(CONFIG_NAME, .{});
         defer config_file.close();
 
         const config_str = try config_file.readToEndAlloc(alloc, 1024 * 1024 * 1024);
@@ -90,11 +90,8 @@ const Config = struct {
         defer parsed_config.deinit();
 
         self.* = parsed_config.value;
-        self.config_path = config_location.home_dir.realpath(
-            config_location.path,
-            &self.config_path_buf,
-        ) catch null;
-        return .{ .deprecated = deprecated };
+        self.config_dir = dir;
+        return;
     }
 };
 

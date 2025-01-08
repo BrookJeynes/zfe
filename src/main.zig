@@ -2,7 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const App = @import("app.zig");
 const vaxis = @import("vaxis");
-const ConfigParseRes = @import("./config.zig").ParseRes;
 const config = &@import("./config.zig").config;
 
 pub const panic = vaxis.panic_handler;
@@ -27,19 +26,14 @@ pub fn main() !void {
     var app = try App.init(alloc);
     defer app.deinit();
 
-    const config_parse_res = config.parse(alloc) catch |err| lbl: {
-        switch (err) {
-            error.SyntaxError => {
-                try app.notification.writeErr(.ConfigSyntaxError);
-            },
-            else => {
-                try app.notification.writeErr(.ConfigUnknownError);
-            },
-        }
-
-        break :lbl ConfigParseRes{ .deprecated = false };
+    config.parse(alloc) catch |err| switch (err) {
+        error.SyntaxError => {
+            try app.notification.writeErr(.ConfigSyntaxError);
+        },
+        else => {
+            try app.notification.writeErr(.ConfigUnknownError);
+        },
     };
-    if (config_parse_res.deprecated) try app.notification.writeWarn(.DeprecatedConfigPath);
 
     try app.run();
 }
