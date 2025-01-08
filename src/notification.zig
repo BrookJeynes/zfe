@@ -28,6 +28,7 @@ const Error = enum {
     ConfigUnknownError,
     ConfigPathNotFound,
     CannotDeleteTrashDir,
+    NotADir,
 };
 
 const Info = enum {
@@ -73,6 +74,7 @@ pub fn writeErr(self: *Self, err: Error) !void {
         .ItemAlreadyExists => self.write("Item already exists.", .err),
         .UnableToRename => self.write("Unable to rename item.", .err),
         .IncorrectPath => self.write("Unable to find path.", .err),
+        .NotADir => self.write("Path is not a directory.", .err),
         .EditorNotSet => self.write("$EDITOR is not set.", .err),
         .UnsupportedImageFormat => self.write("Unsupported image format.", .err),
         .ConfigSyntaxError => self.write("Could not read config due to a syntax error.", .err),

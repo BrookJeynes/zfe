@@ -96,7 +96,8 @@ pub fn cd(app: *App, path: []const u8) !void {
     } else |err| {
         switch (err) {
             error.AccessDenied => try app.notification.writeErr(.PermissionDenied),
-            error.FileNotFound, error.NotDir => try app.notification.writeErr(.IncorrectPath),
+            error.FileNotFound => try app.notification.writeErr(.IncorrectPath),
+            error.NotDir => try app.notification.writeErr(.NotADir),
             else => try app.notification.writeErr(.UnknownError),
         }
     }
