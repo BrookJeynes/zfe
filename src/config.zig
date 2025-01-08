@@ -12,7 +12,7 @@ const Config = struct {
     show_images: bool = true,
     preview_file: bool = true,
     empty_trash_on_exit: bool = false,
-    styles: Styles,
+    styles: Styles = Styles{},
 
     config_path_buf: [std.fs.max_path_bytes]u8 = undefined,
     config_path: ?[]u8 = null,
