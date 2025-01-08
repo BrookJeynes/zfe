@@ -351,13 +351,13 @@ fn drawUserInput(
 
     switch (current_state) {
         .fuzzy, .new_file, .new_dir, .rename, .change_dir, .command => {
-            text_input.draw(user_input_win);
+            text_input.drawWithStyle(user_input_win, config.styles.text_input);
         },
         .normal => {
             if (text_input.buf.realLength() > 0) {
                 text_input.drawWithStyle(
                     user_input_win,
-                    if (std.mem.eql(u8, input, ":UnsupportedCommand")) config.styles.text_input_err else .{},
+                    if (std.mem.eql(u8, input, ":UnsupportedCommand")) config.styles.text_input_err else config.styles.text_input,
                 );
             }
 
