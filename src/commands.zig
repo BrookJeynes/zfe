@@ -3,6 +3,47 @@ const App = @import("app.zig");
 const environment = @import("environment.zig");
 const _config = &@import("./config.zig").config;
 
+pub const CommandHistory = struct {
+    const history_len = 10;
+
+    selected: usize = 0,
+    len: usize = 0,
+    history: [history_len][]const u8 = undefined,
+
+    pub fn push(self: *CommandHistory, command: []const u8) ?[]const u8 {
+        var deleted: ?[]const u8 = null;
+        if (self.len == history_len) {
+            deleted = self.history[0];
+            for (0..self.len - 1) |i| {
+                self.history[i] = self.history[i + 1];
+            }
+        } else {
+            self.len += 1;
+        }
+
+        self.history[self.len - 1] = command;
+        self.selected = self.len;
+
+        return deleted;
+    }
+
+    pub fn next(self: *CommandHistory) ?[]const u8 {
+        if (self.selected == 0) return null;
+        self.selected -= 1;
+        return self.history[self.selected];
+    }
+
+    pub fn previous(self: *CommandHistory) ?[]const u8 {
+        if (self.selected + 1 == self.len) return null;
+        self.selected += 1;
+        return self.history[self.selected];
+    }
+
+    pub fn resetSelected(self: *CommandHistory) void {
+        self.selected = self.len;
+    }
+};
+
 ///Navigate the user to the config dir.
 pub fn config(app: *App) !void {
     const dir = dir: {

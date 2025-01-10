@@ -11,6 +11,7 @@ const zuid = @import("zuid");
 const vaxis = @import("vaxis");
 const Key = vaxis.Key;
 const EventHandlers = @import("./event_handlers.zig");
+const CommandHistory = @import("./commands.zig").CommandHistory;
 
 pub const State = enum {
     normal,
@@ -49,6 +50,7 @@ vx: vaxis.Vaxis = undefined,
 tty: vaxis.Tty = undefined,
 state: State = .normal,
 actions: CircStack(Action, actions_len),
+command_history: CommandHistory = CommandHistory{},
 
 directories: Directories,
 notification: Notification,
@@ -87,13 +89,18 @@ pub fn init(alloc: std.mem.Allocator) !App {
 }
 
 pub fn deinit(self: *App) void {
-    for (self.actions.buf[0..self.actions.count]) |action| {
+    while (self.actions.pop()) |action| {
         switch (action) {
             .delete, .rename => |a| {
                 self.alloc.free(a.new);
                 self.alloc.free(a.old);
             },
         }
+    }
+
+    self.command_history.resetSelected();
+    while (self.command_history.next()) |command| {
+        self.alloc.free(command);
     }
 
     self.directories.deinit();

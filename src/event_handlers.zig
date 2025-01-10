@@ -303,6 +303,7 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                                 }
                             };
                         },
+                        .command => app.command_history.resetSelected(),
                         else => {},
                     }
 
@@ -409,6 +410,9 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                         },
                         .command => {
                             const command = inputToSlice(app);
+                            if (app.command_history.push(try app.alloc.dupe(u8, command))) |deleted| {
+                                app.alloc.free(deleted);
+                            }
 
                             supported: {
                                 if (std.mem.eql(u8, command, ":q")) {
@@ -441,11 +445,31 @@ pub fn handleInputEvent(app: *App, event: App.Event) !void {
                                 app.text_input.clearAndFree();
                                 try app.text_input.insertSliceAtCursor(":UnsupportedCommand");
                             }
+
+                            app.command_history.resetSelected();
                         },
                         else => {},
                     }
                     app.state = .normal;
                     app.directories.entries.selected = selected;
+                },
+                Key.up => {
+                    if (app.state == .command) {
+                        if (app.command_history.next()) |command| {
+                            app.text_input.clearAndFree();
+                            try app.text_input.insertSliceAtCursor(command);
+                        }
+                    }
+                },
+                Key.down => {
+                    if (app.state == .command) {
+                        app.text_input.clearAndFree();
+                        if (app.command_history.previous()) |command| {
+                            try app.text_input.insertSliceAtCursor(command);
+                        } else {
+                            try app.text_input.insertSliceAtCursor(":");
+                        }
+                    }
                 },
                 else => {
                     try app.text_input.update(.{ .key_press = key });

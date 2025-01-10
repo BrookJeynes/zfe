@@ -53,6 +53,7 @@ Input mode:
 <CR>               :Confirm input.
 
 Command mode:
+<Up> / <Down>      :Cycle previous commands.
 :q                 :Exit.
 :config            :Navigate to config directory if it exists.
 :trash             :Navigate to trash directory if it exists.
